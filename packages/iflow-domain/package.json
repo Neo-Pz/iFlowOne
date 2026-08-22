@@ -1,0 +1,16 @@
+{
+  "name": "iflow-domain",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "iFlow Agent Network ontology: Agent, Goal, Task, Room, Event; state machines, reducers, projectors and read-model contracts.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": { "iflow-protocol": "workspace:*" },
+  "devDependencies": { "tsup": "^8.5.0", "typescript": "^5.7.2" }
+}
