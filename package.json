@@ -1,0 +1,25 @@
+{
+  "name": "iflowone",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "iFlowOne core: Agent Network Ontology + Event Semantics + Event Journal + Projection Model",
+  "engines": {
+    "node": "^22.19 || >=24"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev:web": "pnpm --filter iflowone-web run dev",
+    "fixtures": "tsx scripts/generate-fixtures.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5",
+    "tsx": "^4.19.2"
+  }
+}
