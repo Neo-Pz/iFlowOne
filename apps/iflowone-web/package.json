@@ -1,0 +1,28 @@
+{
+  "name": "iflowone-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "iFlowOne Web — the standalone deployment of the shared Hub UI.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview --port 5174",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "iflow-domain": "workspace:*",
+    "iflow-hub-ui": "workspace:*",
+    "iflow-protocol": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}
