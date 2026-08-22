@@ -1,0 +1,1045 @@
+[
+  {
+    "id": "evt-0001",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 1
+    },
+    "occurredAt": "2026-01-01T00:00:00.000Z",
+    "correlationId": "corr-0001",
+    "type": "agent.registered",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-edge"
+    },
+    "payload": {
+      "label": "if-lt",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "nodeId": "node-fixture",
+      "runtimeKind": "dsh",
+      "capabilities": [
+        "iflow.cap:task.run",
+        "iflow.cap:tool.call"
+      ]
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0002",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 2
+    },
+    "occurredAt": "2026-01-01T00:00:00.000Z",
+    "correlationId": "corr-0002",
+    "type": "goal.created",
+    "issuer": {
+      "id": "user-lin",
+      "kind": "human"
+    },
+    "subject": {
+      "kind": "goal",
+      "id": "goal-slice"
+    },
+    "goalId": "goal-slice",
+    "payload": {
+      "title": "Produce the quarterly summary",
+      "constraints": [
+        "stay inside the workspace",
+        "no network writes"
+      ],
+      "budget": {
+        "currency": "USD",
+        "limit": 5
+      },
+      "roomId": "room-slice"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0003",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 3
+    },
+    "occurredAt": "2026-01-01T00:00:01.500Z",
+    "correlationId": "corr-0003",
+    "type": "room.created",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "room",
+      "id": "room-slice"
+    },
+    "goalId": "goal-slice",
+    "roomId": "room-slice",
+    "payload": {
+      "title": "Quarterly summary",
+      "goalId": "goal-slice",
+      "rootTaskId": "task-root"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0004",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 4
+    },
+    "occurredAt": "2026-01-01T00:00:03.000Z",
+    "correlationId": "corr-0004",
+    "type": "agent.registered",
+    "issuer": {
+      "id": "agent-lead",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-lead"
+    },
+    "payload": {
+      "label": "lead",
+      "nodeId": "node-fixture",
+      "runtimeKind": "dsh",
+      "capabilities": [
+        "iflow.cap:task.delegate"
+      ]
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0005",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 5
+    },
+    "occurredAt": "2026-01-01T00:00:03.000Z",
+    "correlationId": "corr-0005",
+    "type": "room.participant_joined",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "room",
+      "id": "room-slice"
+    },
+    "roomId": "room-slice",
+    "payload": {
+      "agentId": "agent-lead"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0006",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 6
+    },
+    "occurredAt": "2026-01-01T00:00:03.400Z",
+    "correlationId": "corr-0006",
+    "type": "agent.registered",
+    "issuer": {
+      "id": "agent-reader",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-reader"
+    },
+    "payload": {
+      "label": "reader",
+      "nodeId": "node-fixture",
+      "runtimeKind": "dsh",
+      "capabilities": [
+        "iflow.cap:fs.read"
+      ]
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0007",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 7
+    },
+    "occurredAt": "2026-01-01T00:00:03.400Z",
+    "correlationId": "corr-0007",
+    "type": "room.participant_joined",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "room",
+      "id": "room-slice"
+    },
+    "roomId": "room-slice",
+    "payload": {
+      "agentId": "agent-reader"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0008",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 8
+    },
+    "occurredAt": "2026-01-01T00:00:03.800Z",
+    "correlationId": "corr-0008",
+    "type": "agent.registered",
+    "issuer": {
+      "id": "agent-writer",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-writer"
+    },
+    "payload": {
+      "label": "writer",
+      "nodeId": "node-fixture",
+      "runtimeKind": "dsh",
+      "capabilities": [
+        "iflow.cap:fs.write"
+      ]
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0009",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 9
+    },
+    "occurredAt": "2026-01-01T00:00:03.800Z",
+    "correlationId": "corr-0009",
+    "type": "room.participant_joined",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "room",
+      "id": "room-slice"
+    },
+    "roomId": "room-slice",
+    "payload": {
+      "agentId": "agent-writer"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0010",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 10
+    },
+    "occurredAt": "2026-01-01T00:00:04.200Z",
+    "correlationId": "corr-0010",
+    "type": "task.created",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-root"
+    },
+    "goalId": "goal-slice",
+    "taskId": "task-root",
+    "roomId": "room-slice",
+    "payload": {
+      "title": "Assemble the summary"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0011",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 11
+    },
+    "occurredAt": "2026-01-01T00:00:04.200Z",
+    "correlationId": "corr-0010",
+    "type": "task.delegated",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-root"
+    },
+    "taskId": "task-root",
+    "payload": {
+      "toAgentId": "agent-lead",
+      "reason": "lead accepted the goal"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0012",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 12
+    },
+    "occurredAt": "2026-01-01T00:00:04.200Z",
+    "correlationId": "corr-0010",
+    "type": "task.started",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-root"
+    },
+    "taskId": "task-root",
+    "payload": {
+      "agentId": "agent-lead",
+      "attemptId": "attempt-root-1"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0013",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 13
+    },
+    "occurredAt": "2026-01-01T00:00:04.200Z",
+    "correlationId": "corr-0011",
+    "type": "agent.presence_changed",
+    "issuer": {
+      "id": "agent-lead",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-lead"
+    },
+    "payload": {
+      "execution": "running"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0014",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 14
+    },
+    "occurredAt": "2026-01-01T00:00:05.700Z",
+    "correlationId": "corr-0012",
+    "type": "task.created",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-read"
+    },
+    "goalId": "goal-slice",
+    "taskId": "task-read",
+    "roomId": "room-slice",
+    "payload": {
+      "title": "Read the ledger",
+      "parentTaskId": "task-root"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0015",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 15
+    },
+    "occurredAt": "2026-01-01T00:00:05.700Z",
+    "correlationId": "corr-0012",
+    "type": "task.delegated",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-read"
+    },
+    "taskId": "task-read",
+    "payload": {
+      "toAgentId": "agent-reader"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0016",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 16
+    },
+    "occurredAt": "2026-01-01T00:00:05.700Z",
+    "correlationId": "corr-0012",
+    "type": "task.started",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-read"
+    },
+    "taskId": "task-read",
+    "payload": {
+      "agentId": "agent-reader",
+      "attemptId": "attempt-read-1"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0017",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 17
+    },
+    "occurredAt": "2026-01-01T00:00:05.700Z",
+    "correlationId": "corr-0013",
+    "type": "agent.presence_changed",
+    "issuer": {
+      "id": "agent-reader",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-reader"
+    },
+    "payload": {
+      "execution": "running"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0018",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 18
+    },
+    "occurredAt": "2026-01-01T00:00:06.500Z",
+    "correlationId": "corr-0012",
+    "type": "tool.call_started",
+    "issuer": {
+      "id": "agent-reader",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-read"
+    },
+    "taskId": "task-read",
+    "payload": {
+      "callId": "call-read-1",
+      "toolName": "read_file",
+      "agentId": "agent-reader"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0019",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 19
+    },
+    "occurredAt": "2026-01-01T00:00:07.100Z",
+    "correlationId": "corr-0012",
+    "type": "tool.call_completed",
+    "issuer": {
+      "id": "agent-reader",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-read"
+    },
+    "taskId": "task-read",
+    "payload": {
+      "callId": "call-read-1",
+      "toolName": "read_file",
+      "outcome": "ok"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0020",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 20
+    },
+    "occurredAt": "2026-01-01T00:00:07.100Z",
+    "correlationId": "corr-0012",
+    "type": "usage.recorded",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-read"
+    },
+    "taskId": "task-read",
+    "payload": {
+      "model": "deepseek-v4-flash",
+      "tokens": {
+        "input": 4210,
+        "output": 890,
+        "cacheRead": 1200,
+        "cacheWrite": 0
+      },
+      "costMicros": 3400,
+      "currency": "USD",
+      "priceSource": "pricing.json"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0021",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 21
+    },
+    "occurredAt": "2026-01-01T00:00:07.100Z",
+    "correlationId": "corr-0012",
+    "type": "task.completed",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-read"
+    },
+    "taskId": "task-read",
+    "payload": {
+      "summary": "ledger rows extracted",
+      "outputs": [
+        {
+          "kind": "message",
+          "id": "msg-read-1",
+          "summary": "412 rows"
+        }
+      ]
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0022",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 22
+    },
+    "occurredAt": "2026-01-01T00:00:07.100Z",
+    "correlationId": "corr-0014",
+    "type": "agent.presence_changed",
+    "issuer": {
+      "id": "agent-reader",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-reader"
+    },
+    "payload": {
+      "execution": "idle"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0023",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 23
+    },
+    "occurredAt": "2026-01-01T00:00:08.600Z",
+    "correlationId": "corr-0015",
+    "type": "task.created",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "goalId": "goal-slice",
+    "taskId": "task-write",
+    "roomId": "room-slice",
+    "payload": {
+      "title": "Write the summary file",
+      "parentTaskId": "task-root",
+      "dependsOn": [
+        "task-read"
+      ]
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0024",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 24
+    },
+    "occurredAt": "2026-01-01T00:00:08.600Z",
+    "correlationId": "corr-0015",
+    "type": "task.delegated",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "toAgentId": "agent-writer"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0025",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 25
+    },
+    "occurredAt": "2026-01-01T00:00:08.600Z",
+    "correlationId": "corr-0015",
+    "type": "task.started",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "agentId": "agent-writer",
+      "attemptId": "attempt-write-1"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0026",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 26
+    },
+    "occurredAt": "2026-01-01T00:00:09.300Z",
+    "correlationId": "corr-0015",
+    "type": "approval.requested",
+    "issuer": {
+      "id": "agent-writer",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "approvalId": "appr-write-1",
+      "toolName": "write_file",
+      "reason": "writing outside the workspace root",
+      "agentId": "agent-writer"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0027",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 27
+    },
+    "occurredAt": "2026-01-01T00:00:09.300Z",
+    "correlationId": "corr-0015",
+    "type": "task.awaiting_approval",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "approvalId": "appr-write-1",
+      "reason": "writing outside the workspace root"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0028",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 28
+    },
+    "occurredAt": "2026-01-01T00:00:18.300Z",
+    "correlationId": "corr-0015",
+    "type": "approval.resolved",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "approvalId": "appr-write-1",
+      "decision": "allowed"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0029",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 29
+    },
+    "occurredAt": "2026-01-01T00:00:18.300Z",
+    "correlationId": "corr-0015",
+    "type": "task.started",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "agentId": "agent-writer",
+      "attemptId": "attempt-write-2"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0030",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 30
+    },
+    "occurredAt": "2026-01-01T00:00:18.900Z",
+    "correlationId": "corr-0015",
+    "type": "tool.call_started",
+    "issuer": {
+      "id": "agent-writer",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "callId": "call-write-1",
+      "toolName": "write_file",
+      "agentId": "agent-writer"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0031",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 31
+    },
+    "occurredAt": "2026-01-01T00:00:18.900Z",
+    "correlationId": "corr-0015",
+    "type": "tool.call_completed",
+    "issuer": {
+      "id": "agent-writer",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "callId": "call-write-1",
+      "toolName": "write_file",
+      "outcome": "ok"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0032",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 32
+    },
+    "occurredAt": "2026-01-01T00:00:18.900Z",
+    "correlationId": "corr-0015",
+    "type": "task.completed",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-write"
+    },
+    "taskId": "task-write",
+    "payload": {
+      "summary": "summary.md written"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0033",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 33
+    },
+    "occurredAt": "2026-01-01T00:00:18.900Z",
+    "correlationId": "corr-0016",
+    "type": "agent.presence_changed",
+    "issuer": {
+      "id": "agent-writer",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-writer"
+    },
+    "payload": {
+      "execution": "idle"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0034",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 34
+    },
+    "occurredAt": "2026-01-01T00:00:20.400Z",
+    "correlationId": "corr-0010",
+    "type": "task.completed",
+    "issuer": {
+      "id": "agent-edge",
+      "did": "did:key:z6MkfixtureEdgeIdentityPlaceholder000000000",
+      "kind": "system"
+    },
+    "subject": {
+      "kind": "task",
+      "id": "task-root"
+    },
+    "taskId": "task-root",
+    "payload": {
+      "summary": "quarterly summary delivered",
+      "outputs": [
+        {
+          "kind": "artifact",
+          "id": "artifact-summary",
+          "summary": "summary.md"
+        }
+      ]
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  },
+  {
+    "id": "evt-0035",
+    "schemaVersion": 1,
+    "origin": {
+      "nodeId": "node-fixture",
+      "streamId": "edge",
+      "seq": 35
+    },
+    "occurredAt": "2026-01-01T00:00:20.400Z",
+    "correlationId": "corr-0017",
+    "type": "agent.presence_changed",
+    "issuer": {
+      "id": "agent-lead",
+      "kind": "agent"
+    },
+    "subject": {
+      "kind": "agent",
+      "id": "agent-lead"
+    },
+    "payload": {
+      "execution": "idle"
+    },
+    "evidence": {
+      "source": "dsh"
+    }
+  }
+]
