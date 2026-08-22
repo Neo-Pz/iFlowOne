@@ -8,7 +8,13 @@
  */
 
 import type { IFlowEvent } from 'iflow-protocol'
-import type { AgentCoordination, AgentExecution, AgentPresence, TrustEvidence } from './objects.js'
+import type {
+  AgentCoordination,
+  AgentExecution,
+  AgentPresence,
+  SettlementVisibility,
+  TrustEvidence,
+} from './objects.js'
 
 export const EVENT_TYPES = [
   'agent.registered',
@@ -35,6 +41,11 @@ export const EVENT_TYPES = [
   // tokens per task (P4), and that fact needs a home in the journal rather
   // than a second private ledger.
   'usage.recorded',
+  // The economic layer. A price is a two-party fact, so it arrives as a pair:
+  // a signed offer, and an acceptance that embeds and countersigns it.
+  'quote.offered',
+  'quote.accepted',
+  'task.settled',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]
@@ -85,6 +96,43 @@ export interface EventPayloadMap {
   'a2a.request_received': { fromDid?: string; fromLabel?: string; remoteTaskId: string; grantRef?: string }
   'execution.attempt_started': { attemptId: string; agentId: string; traceId?: string }
   'execution.attempt_finished': { attemptId: string; outcome: 'succeeded' | 'failed' | 'cancelled' }
+  /** The supplier names a price. Subject is the Task; the issuer is the offerer. */
+  'quote.offered': {
+    quoteId: string
+    offeredBy: string
+    offeredTo: string
+    /** Integer micro-units. The canonical form rejects floats. */
+    amountMicros: number
+    currency: string
+    /** `iflow.cap:` id, so a market aggregate has something to group by. */
+    capability?: string
+    expiresAt: string
+    terms?: string
+  }
+  /**
+   * The buyer accepts, and countersigns.
+   *
+   * `offerEventId` and `offerSignature` bind this acceptance to one specific
+   * signed offer. Either half alone is a one-sided claim; the pair is what a
+   * third party can verify without trusting either participant.
+   */
+  'quote.accepted': {
+    quoteId: string
+    acceptedBy: string
+    offerEventId: string
+    offerSignature: string
+  }
+  /** What actually changed hands. */
+  'task.settled': {
+    quoteId?: string
+    payerAgentId: string
+    payeeAgentId: string
+    amountMicros: number
+    currency: string
+    visibility: SettlementVisibility
+    basis: 'quote' | 'metered' | 'negotiated'
+    settlementRef?: string
+  }
   'usage.recorded': {
     model: string
     /** Integers only — the canonical form rejects floats (see iflow-protocol/canonical.ts). */

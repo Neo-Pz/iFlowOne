@@ -11,6 +11,8 @@ import { isEventOfType, isKnownEventType } from '../event-types.js'
 import type { NetworkState } from '../reducers/network-state.js'
 import type {
   ActivityEntry,
+  MarketView,
+  PriceBand,
   ActivityFeedView,
   AgentStateView,
   NetworkEdge,
@@ -30,6 +32,7 @@ export const ACTIVITY_FEED_PROJECTION_VERSION = 1
 export const TASK_GRAPH_PROJECTION_VERSION = 1
 export const ROOM_PROJECTION_VERSION = 1
 export const TRUST_EVIDENCE_PROJECTION_VERSION = 1
+export const MARKET_PROJECTION_VERSION = 1
 
 /**
  * `builtAt` is the only place a projector needs a clock, so it is injected
@@ -151,6 +154,11 @@ export function projectNetworkGraph(state: NetworkState, options: ProjectOptions
   return { meta: meta(state, NETWORK_GRAPH_PROJECTION_VERSION, options), data: { nodes, edges } }
 }
 
+/** Micro-units back to a human-readable amount, for display only. */
+function formatAmount(micros: number, currency: string): string {
+  return `${(micros / 1_000_000).toFixed(2)} ${currency}`
+}
+
 /** One line of prose per fact. Derived from the payload only — never inferred. */
 export function summarizeEvent(event: AnyIFlowEvent): string {
   if (!isKnownEventType(event.type)) return event.type
@@ -191,6 +199,15 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
   if (isEventOfType(event, 'usage.recorded')) {
     const { input, output } = event.payload.tokens
     return `Usage ${event.payload.model}: ${input} in / ${output} out`
+  }
+  if (isEventOfType(event, 'quote.offered')) {
+    return `Quoted ${formatAmount(event.payload.amountMicros, event.payload.currency)} by ${event.payload.offeredBy}`
+  }
+  if (isEventOfType(event, 'quote.accepted')) {
+    return `Quote ${event.payload.quoteId} accepted by ${event.payload.acceptedBy}`
+  }
+  if (isEventOfType(event, 'task.settled')) {
+    return `Settled ${formatAmount(event.payload.amountMicros, event.payload.currency)} (${event.payload.visibility})`
   }
   return event.type
 }
@@ -280,6 +297,77 @@ export function projectRoom(
       toolCalls: Object.values(state.toolCalls).filter((c) => c.taskId !== undefined && taskIds.has(c.taskId)),
     },
   }
+}
+
+/**
+ * Turn settlements into a publishable market picture.
+ *
+ * The visibility rule is enforced HERE rather than at the edge of the network,
+ * so no consumer of this projection can accidentally leak a private price:
+ *
+ *   private   — excluded entirely, and counted in `withheld` so the omission
+ *               is visible rather than silent
+ *   aggregate — counted in a band, never shown individually
+ *   public    — counted in a band AND listed in full
+ *
+ * Bands need a capability to group by. A settlement whose quote named none is
+ * grouped under `iflow.cap:*` rather than dropped: an unclassified price is
+ * still market information, it just cannot be compared like for like.
+ */
+export function projectMarket(state: NetworkState, options: ProjectOptions): ViewEnvelope<MarketView> {
+  const settlements = Object.values(state.tasks)
+    .map((task) => task.settlement)
+    .filter((settlement) => settlement !== undefined)
+
+  const withheld = settlements.filter((settlement) => settlement.visibility === 'private').length
+  const publishable = settlements.filter((settlement) => settlement.visibility !== 'private')
+
+  const grouped = new Map<string, { settlements: typeof publishable; pairs: Set<string> }>()
+  for (const settlement of publishable) {
+    const capability = settlement.quoteId
+      ? (state.quotes[settlement.quoteId]?.capability ?? 'iflow.cap:*')
+      : 'iflow.cap:*'
+    const key = `${capability}|${settlement.currency}`
+    const bucket = grouped.get(key) ?? { settlements: [], pairs: new Set<string>() }
+    bucket.settlements.push(settlement)
+    // Order-independent, so A->B and B->A count as the same relationship.
+    bucket.pairs.add([settlement.payerAgentId, settlement.payeeAgentId].sort().join('<->'))
+    grouped.set(key, bucket)
+  }
+
+  const bands: PriceBand[] = [...grouped.entries()]
+    .map(([key, bucket]) => {
+      const [capability = 'iflow.cap:*', currency = 'USD'] = key.split('|')
+      const amounts = bucket.settlements.map((settlement) => settlement.amountMicros).sort((a, b) => a - b)
+      return {
+        capability,
+        currency,
+        lowMicros: amounts[0] ?? 0,
+        medianMicros: median(amounts),
+        highMicros: amounts[amounts.length - 1] ?? 0,
+        settlements: amounts.length,
+        distinctPairs: bucket.pairs.size,
+      }
+    })
+    .sort((a, b) => a.capability.localeCompare(b.capability))
+
+  return {
+    meta: meta(state, MARKET_PROJECTION_VERSION, options),
+    data: {
+      bands,
+      published: publishable.filter((settlement) => settlement.visibility === 'public'),
+      withheld,
+    },
+  }
+}
+
+/** Median of a pre-sorted list; the lower of the two middles for even counts. */
+function median(sorted: number[]): number {
+  if (sorted.length === 0) return 0
+  const middle = Math.floor(sorted.length / 2)
+  if (sorted.length % 2 === 1) return sorted[middle] as number
+  // Integer micro-units in, integer out — the canonical form rejects floats.
+  return Math.round(((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2)
 }
 
 export function projectTrustEvidence(state: NetworkState, options: ProjectOptions): ViewEnvelope<TrustEvidenceView[]> {

@@ -12,7 +12,10 @@ import type {
   Approval,
   ExecutionAttempt,
   Goal,
+  Quote,
   Room,
+  Settlement,
+  SettlementVisibility,
   Task,
   TaskState,
   ToolCall,
@@ -115,6 +118,44 @@ export interface RoomView {
   toolCalls: ToolCall[]
 }
 
+/**
+ * What a price looks like once it is safe to publish.
+ *
+ * Deliberately a DISTRIBUTION, not a list of deals. Publishing every
+ * counterparty and amount would destroy legitimate price discrimination — the
+ * same supplier may charge a high-volume buyer less, for good reason — so the
+ * default shape a market exposes is the shape of the market, not its contents.
+ * A specific deal appears only when both parties marked it `public`.
+ */
+export interface PriceBand {
+  /** `iflow.cap:` id this band prices. */
+  capability: string
+  currency: string
+  /** Integer micro-units. */
+  lowMicros: number
+  medianMicros: number
+  highMicros: number
+  /** How many settlements this band summarizes. */
+  settlements: number
+  /**
+   * Distinct counterparty PAIRS behind those settlements.
+   *
+   * A band with many settlements but one pair is one relationship repeating,
+   * not a market rate — and it is exactly the shape wash trading produces.
+   * Publishing this alongside the price lets a reader judge for themselves
+   * rather than trusting the aggregate.
+   */
+  distinctPairs: number
+}
+
+export interface MarketView {
+  bands: PriceBand[]
+  /** Deals both parties chose to publish, in full. */
+  published: Settlement[]
+  /** Settlements excluded from every band because they were marked private. */
+  withheld: number
+}
+
 export interface TrustEvidenceView {
   agentId: string
   did?: string
@@ -129,4 +170,16 @@ export interface ProjectionSet {
   tasks: ViewEnvelope<TaskGraphView>
 }
 
-export type { Agent, Approval, ExecutionAttempt, Goal, Room, Task, TaskState, ToolCall }
+export type {
+  Agent,
+  Approval,
+  ExecutionAttempt,
+  Goal,
+  Quote,
+  Room,
+  Settlement,
+  SettlementVisibility,
+  Task,
+  TaskState,
+  ToolCall,
+}

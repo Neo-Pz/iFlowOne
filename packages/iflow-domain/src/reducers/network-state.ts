@@ -11,7 +11,7 @@
 
 import type { AnyIFlowEvent, DomainEvent, EventType } from '../event-types.js'
 import { isEventOfType, isKnownEventType } from '../event-types.js'
-import type { Agent, Approval, Goal, Room, Task, TaskState, ToolCall } from '../objects.js'
+import type { Agent, Approval, Goal, Quote, Room, Task, TaskState, ToolCall } from '../objects.js'
 import { INITIAL_AGENT_STATE, canTransition } from '../objects.js'
 
 /** How many recent events the activity ring keeps. Older facts stay in the Journal. */
@@ -31,6 +31,8 @@ export interface NetworkState {
   rooms: Record<string, Room>
   toolCalls: Record<string, ToolCall>
   approvals: Record<string, Approval>
+  /** Prices offered, keyed by quoteId. An unaccepted quote is not a price. */
+  quotes: Record<string, Quote>
   /** Bounded ring of recent events, newest last. */
   recent: AnyIFlowEvent[]
   /** True once the ring has dropped at least one event. */
@@ -53,6 +55,7 @@ export function emptyNetworkState(): NetworkState {
     rooms: {},
     toolCalls: {},
     approvals: {},
+    quotes: {},
     recent: [],
     recentTruncated: false,
     streamCursors: {},
@@ -386,6 +389,55 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     return
   }
 
+  if (isEventOfType(event, 'quote.offered')) {
+    const taskId = taskIdOf(event)
+    if (!taskId) return
+    ensureTask(state, taskId, at)
+    state.quotes[event.payload.quoteId] = {
+      quoteId: event.payload.quoteId,
+      taskId,
+      offeredBy: event.payload.offeredBy,
+      offeredTo: event.payload.offeredTo,
+      amountMicros: event.payload.amountMicros,
+      currency: event.payload.currency,
+      capability: event.payload.capability,
+      expiresAt: event.payload.expiresAt,
+      terms: event.payload.terms,
+      offeredAt: at,
+    }
+    return
+  }
+
+  if (isEventOfType(event, 'quote.accepted')) {
+    const quote = state.quotes[event.payload.quoteId]
+    // An acceptance with no offer in this journal is not a price. The pair is
+    // the unit of meaning, and half of it proves nothing.
+    if (!quote) return
+    quote.acceptedAt = at
+    quote.acceptedBy = event.payload.acceptedBy
+    return
+  }
+
+  if (isEventOfType(event, 'task.settled')) {
+    const taskId = taskIdOf(event)
+    if (!taskId) return
+    const task = ensureTask(state, taskId, at)
+    task.settlement = {
+      taskId,
+      quoteId: event.payload.quoteId,
+      payerAgentId: event.payload.payerAgentId,
+      payeeAgentId: event.payload.payeeAgentId,
+      amountMicros: event.payload.amountMicros,
+      currency: event.payload.currency,
+      visibility: event.payload.visibility,
+      basis: event.payload.basis,
+      settlementRef: event.payload.settlementRef,
+      settledAt: at,
+    }
+    task.updatedAt = at
+    return
+  }
+
   if (isEventOfType(event, 'usage.recorded')) {
     // Metering is a fact about a Task, not a state transition; a settlement
     // view reads it straight from the journal.
@@ -416,6 +468,7 @@ function cloneState(state: NetworkState): NetworkState {
     rooms: mapValues(state.rooms, (r) => ({ ...r, participantAgentIds: [...r.participantAgentIds] })),
     toolCalls: mapValues(state.toolCalls, (c) => ({ ...c })),
     approvals: mapValues(state.approvals, (a) => ({ ...a })),
+    quotes: mapValues(state.quotes, (q) => ({ ...q })),
     recent: [...state.recent],
     recentTruncated: state.recentTruncated,
     streamCursors: { ...state.streamCursors },

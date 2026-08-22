@@ -26,5 +26,8 @@ export { signEvent, verifyEvent, signableBytes, denyAllVerifier } from './signin
 export type { VersionSupport } from './version.js'
 export { EVENT_SCHEMA_VERSION, LEGACY_SYNC_VERSION, LOCAL_VERSION_SUPPORT, negotiateEventSchema } from './version.js'
 
+export type { CountersignFailure, CountersignPayload, CountersignResult } from './countersign.js'
+export { countersignPayloadFor, verifyCountersignedPair } from './countersign.js'
+
 export type { ValidationIssue, ValidationResult } from './validate.js'
 export { validateEvent, validateCommand, assertValidEvent } from './validate.js'

@@ -15,7 +15,14 @@ import { describe, expect, it } from 'vitest'
 
 import { CanonicalizationError, base64url, base64urlDecode, canonicalJson, canonicalize } from '../src/canonical.js'
 import type { IFlowEvent, Signer, Verifier } from '../src/index.js'
-import { EVENT_SCHEMA_VERSION, signEvent, signableBytes, verifyEvent } from '../src/index.js'
+import {
+  EVENT_SCHEMA_VERSION,
+  countersignPayloadFor,
+  signEvent,
+  signableBytes,
+  verifyCountersignedPair,
+  verifyEvent,
+} from '../src/index.js'
 
 describe('canonicalJson', () => {
   it('sorts object keys at every depth', () => {
@@ -188,6 +195,130 @@ describe.skipIf(!hasBinary)('event signing against the real identity binary', ()
     expect(
       await verifier.verify(signableBytes(withSignature), base64urlDecode(signed.signature.value), await signer.did()),
     ).toBe(true)
+  })
+})
+
+describe.skipIf(!hasBinary)('countersigned agreements', () => {
+  function twoParties(): { seller: ReturnType<typeof iflowIdKeypair>; buyer: ReturnType<typeof iflowIdKeypair> } {
+    const make = (label: string) => {
+      const home = mkdtempSync(join(tmpdir(), `iflow-${label}-`))
+      execFileSync(IFLOW_ID, ['--home', home, 'create', label], { encoding: 'utf8' })
+      return iflowIdKeypair(home)
+    }
+    return { seller: make('seller'), buyer: make('buyer') }
+  }
+
+  function base(overrides: Partial<IFlowEvent> = {}): IFlowEvent {
+    return {
+      id: 'evt-offer',
+      schemaVersion: EVENT_SCHEMA_VERSION,
+      origin: { nodeId: 'node-1', streamId: 'edge', seq: 1 },
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      correlationId: 'corr-1',
+      type: 'quote.offered',
+      issuer: { id: 'agent-seller', kind: 'agent' },
+      subject: { kind: 'task', id: 'task-1' },
+      taskId: 'task-1',
+      payload: {},
+      evidence: { source: 'a2a' },
+      ...overrides,
+    }
+  }
+
+  /** Sign an event the way the journal does: signature written into evidence. */
+  async function selfSign(event: IFlowEvent, party: ReturnType<typeof iflowIdKeypair>): Promise<IFlowEvent> {
+    const did = await party.signer.did()
+    const withIssuer = { ...event, issuer: { ...event.issuer, did } }
+    const signed = await signEvent(withIssuer, party.signer)
+    return {
+      ...withIssuer,
+      evidence: { ...(withIssuer.evidence ?? { source: 'a2a' }), signature: signed.signature.value },
+    }
+  }
+
+  async function agreedPair() {
+    const { seller, buyer } = twoParties()
+    const offer = await selfSign(
+      base({
+        payload: {
+          quoteId: 'q1',
+          offeredBy: 'agent-seller',
+          offeredTo: 'agent-buyer',
+          amountMicros: 2_500_000,
+          currency: 'USD',
+          expiresAt: '2026-12-31T00:00:00.000Z',
+        },
+      }),
+      seller,
+    )
+    const acceptance = await selfSign(
+      base({
+        id: 'evt-accept',
+        origin: { nodeId: 'node-2', streamId: 'edge', seq: 1 },
+        type: 'quote.accepted',
+        issuer: { id: 'agent-buyer', kind: 'agent' },
+        payload: { quoteId: 'q1', acceptedBy: 'agent-buyer', ...countersignPayloadFor(offer) },
+      }),
+      buyer,
+    )
+    return { seller, buyer, offer, acceptance }
+  }
+
+  it('verifies a genuine two-party agreement', async () => {
+    const { seller, offer, acceptance } = await agreedPair()
+    const result = await verifyCountersignedPair(offer, acceptance as never, seller.verifier)
+    expect(result.failures).toEqual([])
+    expect(result.valid).toBe(true)
+  })
+
+  it('rejects an acceptance pointing at a different offer', async () => {
+    const { seller, offer, acceptance } = await agreedPair()
+    const other = { ...offer, id: 'evt-some-other-offer' }
+    const result = await verifyCountersignedPair(other, acceptance as never, seller.verifier)
+    expect(result.valid).toBe(false)
+    expect(result.failures).toContain('offer-id-mismatch')
+  })
+
+  it('rejects an acceptance that quotes the wrong offer signature', async () => {
+    const { seller, offer, acceptance } = await agreedPair()
+    const tampered = {
+      ...acceptance,
+      payload: { ...(acceptance.payload as object), offerSignature: 'AAAA' },
+    }
+    const result = await verifyCountersignedPair(offer, tampered as never, seller.verifier)
+    expect(result.valid).toBe(false)
+    expect(result.failures).toContain('offer-signature-mismatch')
+  })
+
+  it('rejects a price edited after the offer was signed', async () => {
+    const { seller, offer, acceptance } = await agreedPair()
+    const cheaper = {
+      ...offer,
+      payload: { ...(offer.payload as object), amountMicros: 1 },
+    }
+    const result = await verifyCountersignedPair(cheaper, acceptance as never, seller.verifier)
+    expect(result.valid).toBe(false)
+    expect(result.failures).toContain('offer-signature-invalid')
+  })
+
+  it('rejects a party countersigning itself', async () => {
+    const { seller, offer } = await agreedPair()
+    const selfAccept = await selfSign(
+      base({
+        id: 'evt-self',
+        type: 'quote.accepted',
+        issuer: { id: 'agent-seller', kind: 'agent' },
+        payload: { quoteId: 'q1', acceptedBy: 'agent-seller', ...countersignPayloadFor(offer) },
+      }),
+      seller,
+    )
+    const result = await verifyCountersignedPair(offer, selfAccept as never, seller.verifier)
+    expect(result.valid).toBe(false)
+    expect(result.failures).toContain('same-party')
+  })
+
+  it('refuses to build a countersignature for an unsigned offer', () => {
+    expect(() => countersignPayloadFor(base())).toThrow(/carries no signature/)
   })
 })
 

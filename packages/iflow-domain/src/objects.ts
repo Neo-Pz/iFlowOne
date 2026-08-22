@@ -120,6 +120,8 @@ export interface Task {
   attempts: ExecutionAttempt[]
   blockingReason?: string
   outputs: TaskOutput[]
+  /** What this work was priced at, once it settled. */
+  settlement?: Settlement
   createdAt: string
   updatedAt: string
 }
@@ -130,6 +132,71 @@ export interface TaskOutput {
   summary: string
   at: string
 }
+
+/**
+ * A price one Agent offered another for a Task.
+ *
+ * Amounts are integer micro-units of the currency, never floats: the canonical
+ * form rejects non-integer numbers so that two languages sign the same bytes
+ * (see iflow-protocol/canonical.ts). 1_500_000 micros = 1.50 of the currency.
+ */
+export interface Quote {
+  quoteId: string
+  taskId: string
+  /** The Agent that would do the work and named this price. */
+  offeredBy: string
+  /** The Agent that would pay. */
+  offeredTo: string
+  amountMicros: number
+  currency: string
+  /**
+   * What kind of work this price is for, as an `iflow.cap:` id. This is the
+   * key a market aggregate groups by — without it a price is a number with no
+   * comparable.
+   */
+  capability?: string
+  expiresAt: string
+  terms?: string
+  offeredAt: string
+  acceptedAt?: string
+  /** Set when the offer was accepted; the pair is what makes a price binding. */
+  acceptedBy?: string
+}
+
+/**
+ * How much actually changed hands, and who may see it.
+ *
+ * Distinct from `usage.recorded`, which is COST — what the compute burned.
+ * A settlement is PRICE — what one party charged another. Conflating them
+ * would make a market aggregate meaningless.
+ */
+export interface Settlement {
+  taskId: string
+  quoteId?: string
+  payerAgentId: string
+  payeeAgentId: string
+  amountMicros: number
+  currency: string
+  /**
+   * Who may see this number.
+   *
+   *   private   — only the two parties; never leaves their journals
+   *   aggregate — may be counted in market statistics, but not shown per-deal
+   *   public    — the parties chose to publish this specific deal
+   *
+   * Default is `private`. A marketplace that publishes every deal by default
+   * destroys legitimate price discrimination and invites wash trading; the
+   * decision belongs to the parties, not to the protocol.
+   */
+  visibility: SettlementVisibility
+  /** Where the price came from. */
+  basis: 'quote' | 'metered' | 'negotiated'
+  /** External payment reference, when settlement happened off-network. */
+  settlementRef?: string
+  settledAt: string
+}
+
+export type SettlementVisibility = 'private' | 'aggregate' | 'public'
 
 /** Who is collaborating — a coordination space for a Goal or root Task. */
 export interface Room {

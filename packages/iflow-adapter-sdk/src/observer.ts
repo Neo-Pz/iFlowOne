@@ -10,7 +10,14 @@
  * alters the host's work. Observation must not become a control path.
  */
 
-import type { AgentCoordination, AgentExecution, AgentPresence, AnyIFlowEvent, TrustEvidence } from 'iflow-domain'
+import type {
+  AgentCoordination,
+  AgentExecution,
+  AgentPresence,
+  AnyIFlowEvent,
+  SettlementVisibility,
+  TrustEvidence,
+} from 'iflow-domain'
 import type { IFlowIssuer } from 'iflow-protocol'
 
 import type { OriginJournal } from './origin-journal.js'
@@ -414,6 +421,91 @@ export class RuntimeObserver {
     return this.taskEvent('execution.attempt_finished', input.taskId, input.context, {
       attemptId: input.attemptId,
       outcome: input.outcome,
+    })
+  }
+
+  /**
+   * Offer a price for a Task.
+   *
+   * The returned event is the one a counterparty must countersign, so callers
+   * keep it: `countersignPayloadFor(offer)` turns it into the fields the
+   * acceptance needs.
+   */
+  quoteOffered(input: {
+    taskId: string
+    quoteId: string
+    offeredBy: string
+    offeredTo: string
+    /** Integer micro-units. 1_500_000 = 1.50 of the currency. */
+    amountMicros: number
+    currency?: string
+    capability?: string
+    expiresAt: string
+    terms?: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.taskEvent('quote.offered', input.taskId, input.context, {
+      quoteId: input.quoteId,
+      offeredBy: input.offeredBy,
+      offeredTo: input.offeredTo,
+      amountMicros: Math.round(input.amountMicros),
+      currency: input.currency ?? 'USD',
+      capability: input.capability,
+      expiresAt: input.expiresAt,
+      terms: input.terms,
+    })
+  }
+
+  /**
+   * Accept an offer, countersigning it.
+   *
+   * `offerEventId` and `offerSignature` must come from the offer event itself
+   * — see `countersignPayloadFor` in iflow-protocol. An acceptance that does
+   * not quote the offer's own signature is a one-sided claim.
+   */
+  quoteAccepted(input: {
+    taskId: string
+    quoteId: string
+    acceptedBy: string
+    offerEventId: string
+    offerSignature: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.taskEvent('quote.accepted', input.taskId, input.context, {
+      quoteId: input.quoteId,
+      acceptedBy: input.acceptedBy,
+      offerEventId: input.offerEventId,
+      offerSignature: input.offerSignature,
+    })
+  }
+
+  /**
+   * Record what actually changed hands.
+   *
+   * `visibility` defaults to `private`: publishing a counterparty's commercial
+   * terms is a decision the parties make, not a default the protocol imposes.
+   */
+  taskSettled(input: {
+    taskId: string
+    payerAgentId: string
+    payeeAgentId: string
+    amountMicros: number
+    currency?: string
+    quoteId?: string
+    visibility?: SettlementVisibility
+    basis?: 'quote' | 'metered' | 'negotiated'
+    settlementRef?: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.taskEvent('task.settled', input.taskId, input.context, {
+      quoteId: input.quoteId,
+      payerAgentId: input.payerAgentId,
+      payeeAgentId: input.payeeAgentId,
+      amountMicros: Math.round(input.amountMicros),
+      currency: input.currency ?? 'USD',
+      visibility: input.visibility ?? 'private',
+      basis: input.basis ?? (input.quoteId ? 'quote' : 'negotiated'),
+      settlementRef: input.settlementRef,
     })
   }
 
