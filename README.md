@@ -12,7 +12,14 @@ Runtime -> Adapter -> iFlow Domain Core -> Origin Journal -> Local Projection ->
                                      +-> Sync -> Global Accepted Journal -> Global Projection -> Web
 ```
 
-The full design baseline is `../iflow-dsh-plugin/IFLOWONE-ARCHITECTURE.md`.
+> **Pre-1.0. The contract is not frozen.**
+> Event types, payload shapes and view contracts will change without notice
+> until 1.0, and changes may be breaking. Licensed under Apache-2.0 so you can
+> build against it today — pin an exact version if you do.
+
+The full design baseline is
+[`IFLOWONE-ARCHITECTURE.md`](https://github.com/Neo-Pz/dsh/blob/main/IFLOWONE-ARCHITECTURE.md)
+in the reference adapter's repository.
 
 ## Packages
 
@@ -21,11 +28,25 @@ The full design baseline is `../iflow-dsh-plugin/IFLOWONE-ARCHITECTURE.md`.
 | `iflow-domain` | Agent, Goal, Task, Room, Event; state machines, reducers, projectors, read-model contracts | transport, runtime code, deployment |
 | `iflow-protocol` | envelopes, canonical serialization, signature ports, JSON Schema, version negotiation | domain state rules |
 | `iflow-adapter-sdk` | Origin Journal, outbox, command ledger, local projection, and the `RuntimePorts` contract every host implements | global acceptance, UI |
-| `iflow-hub-ui` | projection-driven screens: agent directory, network graph, task room, activity timeline | data fetching, routing, domain rules |
-| `apps/iflowone-web` | the standalone Web deployment of that UI | anything the embedded Hub cannot also do |
+Dependencies run one way: `protocol <- domain <- adapter-sdk`. Nothing here
+depends on a runtime, a deployment, or a network service.
 
-Dependencies run one way: `protocol <- domain <- adapter-sdk`, and
-`domain <- hub-ui <- web`. Nothing depends on a runtime.
+## What is deliberately not here
+
+The Hub UI, the Web app, and the future Community service — global journal,
+cross-node projections, reputation, market aggregation — are product surfaces
+and live in a separate, private repository.
+
+The line is drawn by what a participant needs in order to *join and verify*,
+versus what iFlowOne offers as a *service*:
+
+- **Here, open**: everything an Agent runtime needs to speak the protocol,
+  emit facts, and audit exactly what an adapter observes, transmits and will
+  execute on its behalf. No vendor should install an adapter into their
+  runtime on trust, so the code that decides what leaves a machine — the
+  outbox, the read API, the command executor, the settlement visibility
+  filter — is readable by the party relying on it.
+- **Not here, closed**: aggregation across nodes, and the data itself.
 
 ## Integrating iFlow into an application
 
@@ -62,26 +83,17 @@ runtime coupling lives in four files:
 
 Nothing else in the core knows DSH exists.
 
-## Running the Web app
+## Building
 
 ```bash
 pnpm install
-pnpm build          # protocol + domain need a build; hub-ui ships sources
+pnpm build          # protocol, domain and adapter-sdk
 pnpm fixtures       # regenerate the golden event stream
-pnpm dev:web        # http://127.0.0.1:5174
 ```
 
-`apps/iflowone-web/.env` selects the data source:
-
-| `VITE_IFLOW_SOURCE` | Reads |
-| --- | --- |
-| `mock` (default) | `fixtures/slice-events.json`, folded through the real projectors |
-| `edge` | a live iFlow edge at `VITE_IFLOW_EDGE_URL` (default `http://127.0.0.1:3080`) |
-
-The mock feed is a development tool, not a parallel implementation: it replays
-real `IFlowEvent`s through the same reducers and projectors a live edge uses,
-and it validates every fixture against the published envelope schema. The
-header always says which source is on screen.
+`fixtures/slice-events.json` is a complete, schema-valid event stream produced
+by driving the real SDK — never hand-written — so anything built against it
+keeps working when real facts arrive.
 
 ## Tests
 

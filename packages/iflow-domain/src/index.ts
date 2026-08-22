@@ -51,7 +51,12 @@ export {
   streamKeyOf,
 } from './reducers/network-state.js'
 
-export type { ProjectOptions, TaskGraphFilter } from './projectors/index.js'
+export type {
+  ProjectOptions,
+  PublishableSettlement,
+  PublishableSettlements,
+  TaskGraphFilter,
+} from './projectors/index.js'
 export {
   ACTIVITY_FEED_PROJECTION_VERSION,
   AGENT_STATE_PROJECTION_VERSION,
@@ -64,6 +69,7 @@ export {
   projectAgentState,
   projectAll,
   projectMarket,
+  selectPublishableSettlements,
   projectNetworkGraph,
   projectRoom,
   projectTaskGraph,

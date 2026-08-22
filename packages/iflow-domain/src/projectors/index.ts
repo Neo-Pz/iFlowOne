@@ -20,6 +20,7 @@ import type {
   NetworkNode,
   ProjectionMeta,
   ProjectionSet,
+  Settlement,
   RoomView,
   TaskGraphView,
   TrustEvidenceView,
@@ -300,45 +301,81 @@ export function projectRoom(
 }
 
 /**
- * Turn settlements into a publishable market picture.
+ * Which settlements may leave this node, and which must not.
  *
- * The visibility rule is enforced HERE rather than at the edge of the network,
- * so no consumer of this projection can accidentally leak a private price:
+ * This filter is PUBLIC on purpose. The promise it encodes — "a price you
+ * marked private never leaves your machine" — is only credible if the code
+ * making that decision can be read by the party relying on it. A hidden
+ * privacy filter is not a privacy guarantee, and an agent runtime deciding
+ * whether to join a network is exactly the reader who needs to check.
  *
- *   private   — excluded entirely, and counted in `withheld` so the omission
- *               is visible rather than silent
- *   aggregate — counted in a band, never shown individually
- *   public    — counted in a band AND listed in full
- *
- * Bands need a capability to group by. A settlement whose quote named none is
- * grouped under `iflow.cap:*` rather than dropped: an unclassified price is
- * still market information, it just cannot be compared like for like.
+ * What may be published is settled here. HOW published prices are aggregated
+ * into market statistics is a network-level concern and does not belong to a
+ * single edge: one node's journal holds only its own deals, so a "market rate"
+ * computed locally would be a rate of one participant.
  */
-export function projectMarket(state: NetworkState, options: ProjectOptions): ViewEnvelope<MarketView> {
+export function selectPublishableSettlements(state: NetworkState): PublishableSettlements {
   const settlements = Object.values(state.tasks)
     .map((task) => task.settlement)
     .filter((settlement) => settlement !== undefined)
 
-  const withheld = settlements.filter((settlement) => settlement.visibility === 'private').length
-  const publishable = settlements.filter((settlement) => settlement.visibility !== 'private')
+  const publishable = settlements
+    .filter((settlement) => settlement.visibility !== 'private')
+    .map((settlement) => ({
+      settlement,
+      // The capability is what makes two prices comparable. A settlement whose
+      // quote named none is labelled rather than dropped: an unclassified
+      // price is still market information.
+      capability: settlement.quoteId
+        ? (state.quotes[settlement.quoteId]?.capability ?? UNCLASSIFIED_CAPABILITY)
+        : UNCLASSIFIED_CAPABILITY,
+    }))
 
-  const grouped = new Map<string, { settlements: typeof publishable; pairs: Set<string> }>()
-  for (const settlement of publishable) {
-    const capability = settlement.quoteId
-      ? (state.quotes[settlement.quoteId]?.capability ?? 'iflow.cap:*')
-      : 'iflow.cap:*'
+  return {
+    publishable,
+    // Counted, not silently dropped: an omission a reader cannot see is
+    // indistinguishable from an absence of activity.
+    withheld: settlements.length - publishable.length,
+  }
+}
+
+export const UNCLASSIFIED_CAPABILITY = 'iflow.cap:*'
+
+export interface PublishableSettlement {
+  settlement: Settlement
+  capability: string
+}
+
+export interface PublishableSettlements {
+  publishable: PublishableSettlement[]
+  withheld: number
+}
+
+/**
+ * A single node's own view of its prices.
+ *
+ * Deliberately NOT a market: it summarizes only what this edge itself
+ * settled. Cross-node aggregation, price bands over many participants, and
+ * the heuristics that make such an aggregate trustworthy belong to a
+ * Community service, which sees more than one journal.
+ */
+export function projectMarket(state: NetworkState, options: ProjectOptions): ViewEnvelope<MarketView> {
+  const { publishable, withheld } = selectPublishableSettlements(state)
+
+  const grouped = new Map<string, { amounts: number[]; pairs: Set<string> }>()
+  for (const { settlement, capability } of publishable) {
     const key = `${capability}|${settlement.currency}`
-    const bucket = grouped.get(key) ?? { settlements: [], pairs: new Set<string>() }
-    bucket.settlements.push(settlement)
-    // Order-independent, so A->B and B->A count as the same relationship.
+    const bucket = grouped.get(key) ?? { amounts: [], pairs: new Set<string>() }
+    bucket.amounts.push(settlement.amountMicros)
+    // Order-independent, so A->B and B->A are one relationship.
     bucket.pairs.add([settlement.payerAgentId, settlement.payeeAgentId].sort().join('<->'))
     grouped.set(key, bucket)
   }
 
   const bands: PriceBand[] = [...grouped.entries()]
     .map(([key, bucket]) => {
-      const [capability = 'iflow.cap:*', currency = 'USD'] = key.split('|')
-      const amounts = bucket.settlements.map((settlement) => settlement.amountMicros).sort((a, b) => a - b)
+      const [capability = UNCLASSIFIED_CAPABILITY, currency = 'USD'] = key.split('|')
+      const amounts = [...bucket.amounts].sort((a, b) => a - b)
       return {
         capability,
         currency,
@@ -355,18 +392,19 @@ export function projectMarket(state: NetworkState, options: ProjectOptions): Vie
     meta: meta(state, MARKET_PROJECTION_VERSION, options),
     data: {
       bands,
-      published: publishable.filter((settlement) => settlement.visibility === 'public'),
+      published: publishable
+        .filter(({ settlement }) => settlement.visibility === 'public')
+        .map(({ settlement }) => settlement),
       withheld,
     },
   }
 }
 
-/** Median of a pre-sorted list; the lower of the two middles for even counts. */
+/** Median of a pre-sorted list; integer in, integer out. */
 function median(sorted: number[]): number {
   if (sorted.length === 0) return 0
   const middle = Math.floor(sorted.length / 2)
   if (sorted.length % 2 === 1) return sorted[middle] as number
-  // Integer micro-units in, integer out — the canonical form rejects floats.
   return Math.round(((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2)
 }
 

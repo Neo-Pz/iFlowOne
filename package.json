@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "iFlowOne core: Agent Network Ontology + Event Semantics + Event Journal + Projection Model",
+  "description": "The iFlow contract: Agent Network ontology, event semantics, transport envelopes, and the runtime-agnostic adapter SDK.",
   "engines": {
     "node": "^22.19 || >=24"
   },
@@ -12,7 +12,6 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev:web": "pnpm --filter iflowone-web run dev",
     "fixtures": "tsx scripts/generate-fixtures.ts"
   },
   "devDependencies": {
@@ -21,5 +20,6 @@
     "typescript": "^5.7.2",
     "vitest": "^3.0.5",
     "tsx": "^4.19.2"
-  }
+  },
+  "license": "Apache-2.0"
 }
