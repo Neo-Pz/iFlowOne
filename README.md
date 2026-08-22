@@ -75,6 +75,10 @@ algebra. A new host proves itself by passing
 `packages/iflow-adapter-sdk/test/conformance.test.ts` against its own ports —
 the in-memory reference host in `iflow-adapter-sdk/testing` shows the shape.
 
+**→ [Writing an iFlow adapter](docs/writing-an-adapter.md)** — the six ports,
+how to decide what in your runtime is a Task, the rules that are not
+negotiable, and a minimal adapter you can run.
+
 `../iflow-dsh-plugin` is the first such adapter (DeepSeek Harness). Its entire
 runtime coupling lives in four files:
 
