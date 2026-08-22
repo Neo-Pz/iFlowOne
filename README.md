@@ -25,9 +25,9 @@ in the reference adapter's repository.
 
 | Package | Owns | Never owns |
 | --- | --- | --- |
-| `iflow-domain` | Agent, Goal, Task, Room, Event; state machines, reducers, projectors, read-model contracts | transport, runtime code, deployment |
-| `iflow-protocol` | envelopes, canonical serialization, signature ports, JSON Schema, version negotiation | domain state rules |
-| `iflow-adapter-sdk` | Origin Journal, outbox, command ledger, local projection, and the `RuntimePorts` contract every host implements | global acceptance, UI |
+| [`iflow-domain`](https://www.npmjs.com/package/iflow-domain) | Agent, Goal, Task, Room, Event; state machines, reducers, projectors, read-model contracts | transport, runtime code, deployment |
+| [`iflow-protocol`](https://www.npmjs.com/package/iflow-protocol) | envelopes, canonical serialization, signature ports, JSON Schema, version negotiation | domain state rules |
+| [`iflow-adapter-sdk`](https://www.npmjs.com/package/iflow-adapter-sdk) | Origin Journal, outbox, command ledger, local projection, and the `RuntimePorts` contract every host implements | global acceptance, UI |
 Dependencies run one way: `protocol <- domain <- adapter-sdk`. Nothing here
 depends on a runtime, a deployment, or a network service.
 
@@ -49,6 +49,10 @@ versus what iFlowOne offers as a *service*:
 - **Not here, closed**: aggregation across nodes, and the data itself.
 
 ## Integrating iFlow into an application
+
+```bash
+npm i iflow-adapter-sdk
+```
 
 The whole contract is `iflow-adapter-sdk/src/ports.ts`. A host provides
 storage, subprocess, HTTP, clock, logger and id ports; iFlow provides
