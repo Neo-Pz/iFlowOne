@@ -9,11 +9,32 @@
 import { base64url, base64urlDecode, canonicalBytes } from './canonical.js'
 import type { IFlowEvent, IFlowSignature, SignedIFlowEvent } from './envelope.js'
 
+/**
+ * Which identity a signature is being asked for.
+ *
+ * A node may hold more than one key — a Principal, and one per Agent it
+ * declares — so "sign these bytes" is ambiguous without saying who is
+ * speaking. Optional, and safely ignored: a signer that holds exactly one key
+ * answers the same way regardless.
+ */
+export interface SigningContext {
+  /** The DID the resulting signature must verify against, when known. */
+  did?: string
+  /** The Agent the event is issued by, for a signer that keys on that instead. */
+  agentId?: string
+}
+
 export interface Signer {
   /** The DID this signer speaks for, e.g. `did:key:z6Mk...`. */
   did(): Promise<string>
-  /** Ed25519 signature over the exact bytes given. */
-  sign(bytes: Uint8Array): Promise<Uint8Array>
+  /**
+   * Ed25519 signature over the exact bytes given.
+   *
+   * A multi-key signer picks its key from `context` and MUST refuse rather than
+   * substitute a different one: a signature by the wrong key is not a weaker
+   * signature, it is a false attribution.
+   */
+  sign(bytes: Uint8Array, context?: SigningContext): Promise<Uint8Array>
 }
 
 export interface Verifier {

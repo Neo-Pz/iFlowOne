@@ -295,6 +295,59 @@ describe('origin signatures', () => {
     expect(report.verified).toBe(report.checked)
   })
 
+  it('signs as the agent the event is attributed to, not as whoever holds a key', async () => {
+    // A node holds one key per Agent it declares. If the journal signed every
+    // fact with the same key regardless of who issued it, a verifier checking
+    // the signature against the issuer's DID would call every event by every
+    // other agent a forgery — and, worse, an event could be attributed to an
+    // Agent whose operator never signed anything.
+    const host = createMemoryHost({ did: 'did:key:zNode' })
+    host.descriptor.agentDids = {
+      'agent-writer': 'did:key:zWriter',
+      'agent-reviewer': 'did:key:zReviewer',
+    }
+
+    const asked: Array<string | undefined> = []
+    const signer = {
+      did: async () => 'did:key:zNode',
+      sign: async (_bytes: Uint8Array, context?: { did?: string; agentId?: string }) => {
+        asked.push(context?.did)
+        return new Uint8Array([1, 2, 3])
+      },
+    }
+
+    const edge = await createEdge({ ports: host.ports, descriptor: host.descriptor, signer })
+    await edge.observer.toolCallStarted({ taskId: 't1', callId: 'c1', toolName: 'read', agentId: 'agent-writer' })
+    await edge.observer.toolCallStarted({ taskId: 't1', callId: 'c2', toolName: 'read', agentId: 'agent-reviewer' })
+
+    const facts = edge.journal.all()
+    const byWriter = facts.find((e) => e.issuer.id === 'agent-writer')
+    const byReviewer = facts.find((e) => e.issuer.id === 'agent-reviewer')
+
+    // The event says who acted, and with which key that can be checked.
+    expect(byWriter?.issuer.did).toBe('did:key:zWriter')
+    expect(byReviewer?.issuer.did).toBe('did:key:zReviewer')
+
+    // And the signer was told, so it can reach for the right key.
+    expect(asked).toContain('did:key:zWriter')
+    expect(asked).toContain('did:key:zReviewer')
+  })
+
+  it('leaves an unknown actor without a DID rather than borrowing one', async () => {
+    // A session, or a peer known only by label, has no key. Stamping the node's
+    // DID on its events would claim a proof that does not exist.
+    const host = createMemoryHost({ did: 'did:key:zNode' })
+    host.descriptor.agentDids = { 'agent-writer': 'did:key:zWriter' }
+    const { signer, verifier } = createFakeKeypair()
+    const edge = await createEdge({ ports: host.ports, descriptor: host.descriptor, signer, verifier })
+
+    await edge.observer.toolCallStarted({ taskId: 't1', callId: 'c1', toolName: 'read', agentId: 'agent-stranger' })
+
+    const fact = edge.journal.all().find((e) => e.issuer.id === 'agent-stranger')
+    expect(fact).toBeDefined()
+    expect(fact?.issuer.did).toBeUndefined()
+  })
+
   it('detects a fact whose payload was edited after signing', async () => {
     const host = createMemoryHost({ did: 'did:key:zFakeTestIdentity' })
     const { signer, verifier } = createFakeKeypair()

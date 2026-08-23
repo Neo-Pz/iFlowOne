@@ -250,7 +250,12 @@ export class OriginJournal {
     const signed = stripUndefined(event) as IFlowEvent<EventPayloadMap[K]>
     if (this.signer) {
       try {
-        const raw = await this.signer.sign(signableBytes(signed))
+        // Name the issuer, so a node holding several keys signs with the one
+        // the event is attributed to rather than whichever it happens to hold.
+        const raw = await this.signer.sign(signableBytes(signed), {
+          did: signed.issuer.did,
+          agentId: signed.issuer.id,
+        })
         signed.evidence = { ...(signed.evidence ?? { source: 'dsh' }), signature: base64url(raw) }
       } catch (error) {
         this.unsignedCount += 1

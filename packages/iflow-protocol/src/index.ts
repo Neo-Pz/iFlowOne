@@ -20,7 +20,7 @@ export {
   CanonicalizationError,
 } from './canonical.js'
 
-export type { Signer, Verifier } from './signing.js'
+export type { Signer, SigningContext, Verifier } from './signing.js'
 export { signEvent, verifyEvent, signableBytes, denyAllVerifier } from './signing.js'
 
 export type { VersionSupport } from './version.js'

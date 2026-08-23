@@ -64,8 +64,19 @@ export class RuntimeObserver {
     this.correlations.delete(taskId)
   }
 
+  /**
+   * The issuer stamp for an event an Agent produced.
+   *
+   * The DID matters: a verifier checks the signature against it, and an event
+   * that carries none can be recorded but never proven off-node. A declared
+   * Agent has its own key, so its own DID is attached; `selfAgentId` keeps the
+   * edge's DID; anything else — a session, a peer label — has no key and is
+   * honestly left without one.
+   */
   private agentIssuer(agentId: string): IFlowIssuer {
-    return { id: agentId, did: agentId === this.descriptor.selfAgentId ? this.descriptor.did : undefined, kind: 'agent' }
+    const declared = this.descriptor.agentDids?.[agentId]
+    const did = declared ?? (agentId === this.descriptor.selfAgentId ? this.descriptor.did : undefined)
+    return { id: agentId, did, kind: 'agent' }
   }
 
   /** Record, but never let an observation failure break the host's work. */

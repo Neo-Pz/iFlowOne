@@ -133,6 +133,15 @@ export interface RuntimeDescriptor {
   selfAgentId: string
   selfAgentLabel: string
   did?: string
+  /**
+   * The DID of each Agent this node has declared, by agent id.
+   *
+   * One journal, several signers: a node holds a key per declared Agent, and an
+   * event issued by one of them must carry that Agent's DID so a third party
+   * can verify the signature against the right key. Absent for a node that has
+   * declared nothing, where `selfAgentId` and `did` are the whole story.
+   */
+  agentDids?: Record<string, string>
 }
 
 export interface RuntimePorts {
