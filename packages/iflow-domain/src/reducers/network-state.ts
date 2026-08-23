@@ -168,6 +168,10 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     agent.runtimeKind = event.payload.runtimeKind
     agent.capabilities = [...event.payload.capabilities]
     if (event.payload.did !== undefined) agent.did = event.payload.did
+    // A claim is only ever added, never cleared by a later registration: an
+    // Agent that re-registers without naming its Principal has not been
+    // disowned, it has been restarted.
+    if (event.payload.principal) agent.principal = { ...event.payload.principal }
     if (event.payload.trustEvidence) agent.trustEvidence = [...event.payload.trustEvidence]
     agent.state = { ...agent.state, presence: 'online' }
     agent.lastSeenAt = at

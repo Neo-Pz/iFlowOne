@@ -43,6 +43,64 @@ describe('task state machine', () => {
   })
 })
 
+describe('the second identity layer', () => {
+  const claim = { did: 'did:key:zPrincipal', grantRef: 'sha256:abcd', label: 'Acme Ltd' }
+
+  it('records who an Agent answers to', () => {
+    const state = reduceEvents([
+      event('agent.registered', { kind: 'agent', id: 'a1' }, {
+        label: 'writer',
+        nodeId: 'node-1',
+        runtimeKind: 'dsh',
+        capabilities: ['iflow.cap:task.run'],
+        principal: claim,
+      }),
+    ])
+
+    expect(state.agents.a1?.principal).toEqual(claim)
+  })
+
+  it('reads a fact written before the field existed', () => {
+    // The whole promise of an additive change: a journal recorded by an older
+    // build still folds, and an Agent nobody has claimed says so by absence
+    // rather than by failing to load.
+    const state = reduceEvents([
+      event('agent.registered', { kind: 'agent', id: 'a1' }, {
+        label: 'writer',
+        nodeId: 'node-1',
+        runtimeKind: 'dsh',
+        capabilities: [],
+      }),
+    ])
+
+    expect(state.agents.a1).toBeDefined()
+    expect(state.agents.a1?.principal).toBeUndefined()
+  })
+
+  it('does not disown an Agent that merely restarted', () => {
+    // A node re-registers its agents on every boot, and an older build — or a
+    // node whose principal key is temporarily unavailable — would omit the
+    // claim. Treating that as "disowned" would silently drop accountability.
+    const state = reduceEvents([
+      event('agent.registered', { kind: 'agent', id: 'a1' }, {
+        label: 'writer',
+        nodeId: 'node-1',
+        runtimeKind: 'dsh',
+        capabilities: [],
+        principal: claim,
+      }),
+      event('agent.registered', { kind: 'agent', id: 'a1' }, {
+        label: 'writer',
+        nodeId: 'node-1',
+        runtimeKind: 'dsh',
+        capabilities: [],
+      }),
+    ])
+
+    expect(state.agents.a1?.principal).toEqual(claim)
+  })
+})
+
 describe('event vocabulary', () => {
   it('recognizes exactly the published types', () => {
     for (const type of EVENT_TYPES) expect(isKnownEventType(type)).toBe(true)

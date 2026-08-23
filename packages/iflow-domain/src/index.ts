@@ -7,6 +7,7 @@ export type {
   Approval,
   ExecutionAttempt,
   Goal,
+  PrincipalRef,
   Room,
   Quote,
   Settlement,

@@ -32,6 +32,28 @@ export const INITIAL_AGENT_STATE: AgentState = {
   coordination: 'ready',
 }
 
+/**
+ * Who an Agent answers to.
+ *
+ * Identity has two layers: a Principal — a person or an organization — holds a
+ * key and may operate several Agents, each with a key of its own. The binding
+ * is a grant the Principal signed naming that Agent as its delegate, so a third
+ * party can verify "this Agent is operated by that Principal" without trusting
+ * either of them.
+ *
+ * This is what makes an autonomous Agent accountable rather than unowned. An
+ * Agent with no Principal is not forbidden — a node may run one before anyone
+ * has claimed it — but nothing it agrees to can bind a human.
+ */
+export interface PrincipalRef {
+  /** The Principal's did:key. The signature on any human authorization. */
+  did: string
+  /** The grant binding this Agent to that Principal, by its content hash. */
+  grantRef: string
+  /** Display name, when the Principal chose to publish one. */
+  label?: string
+}
+
 /** Who is acting. */
 export interface Agent {
   id: string
@@ -41,6 +63,15 @@ export interface Agent {
   runtimeKind: string
   capabilities: string[]
   state: AgentState
+  /**
+   * The Principal this Agent acts for.
+   *
+   * Optional because the field arrived after the first agents did, and a fact
+   * already written is not rewritten. Absent means unclaimed, which a reader
+   * should treat as "nobody has accepted responsibility for this", not as
+   * "trusted by default".
+   */
+  principal?: PrincipalRef
   /** Evidence a peer can check, not a score we assert. */
   trustEvidence: TrustEvidence[]
   registeredAt: string
