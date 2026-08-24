@@ -15,7 +15,7 @@ export interface IFlowIssuer {
 
 /** What the fact is about. */
 export interface IFlowSubject {
-  kind: 'agent' | 'goal' | 'task' | 'room' | 'artifact'
+  kind: 'agent' | 'goal' | 'task' | 'room' | 'artifact' | 'conversation'
   id: string
 }
 
@@ -57,6 +57,14 @@ export interface IFlowEvent<T = unknown> {
   goalId?: string
   taskId?: string
   roomId?: string
+  /**
+   * The Conversation this fact belongs to, when it belongs to one.
+   *
+   * A context shortcut like `taskId` and `roomId`, not a replacement for
+   * `subject`. On the A2A wire this is carried by the protocol's existing
+   * `contextId` field rather than a parallel header.
+   */
+  conversationId?: string
   trace?: IFlowTrace
   payload: T
   evidence?: IFlowEvidence

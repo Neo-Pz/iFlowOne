@@ -11,7 +11,18 @@
 
 import type { AnyIFlowEvent, DomainEvent, EventType } from '../event-types.js'
 import { isEventOfType, isKnownEventType } from '../event-types.js'
-import type { Agent, Approval, Goal, Quote, Room, Task, TaskState, ToolCall } from '../objects.js'
+import type {
+  Agent,
+  AgentRelation,
+  Approval,
+  Conversation,
+  Goal,
+  Quote,
+  Room,
+  Task,
+  TaskState,
+  ToolCall,
+} from '../objects.js'
 import { INITIAL_AGENT_STATE, canTransition } from '../objects.js'
 
 /** How many recent events the activity ring keeps. Older facts stay in the Journal. */
@@ -33,6 +44,10 @@ export interface NetworkState {
   approvals: Record<string, Approval>
   /** Prices offered, keyed by quoteId. An unaccepted quote is not a price. */
   quotes: Record<string, Quote>
+  /** Communication threads, keyed by conversationId. Never holds a transcript. */
+  conversations: Record<string, Conversation>
+  /** Agent-to-agent relationships, keyed by `source|target|type`. */
+  relations: Record<string, AgentRelation>
   /** Bounded ring of recent events, newest last. */
   recent: AnyIFlowEvent[]
   /** True once the ring has dropped at least one event. */
@@ -56,6 +71,8 @@ export function emptyNetworkState(): NetworkState {
     toolCalls: {},
     approvals: {},
     quotes: {},
+    conversations: {},
+    relations: {},
     recent: [],
     recentTruncated: false,
     streamCursors: {},
@@ -115,6 +132,31 @@ function moveTask(state: NetworkState, task: Task, to: TaskState, event: AnyIFlo
 
 function taskIdOf(event: AnyIFlowEvent): string | undefined {
   return event.taskId ?? (event.subject.kind === 'task' ? event.subject.id : undefined)
+}
+
+function conversationIdOf(event: AnyIFlowEvent): string | undefined {
+  return event.conversationId ?? (event.subject.kind === 'conversation' ? event.subject.id : undefined)
+}
+
+function ensureConversation(state: NetworkState, id: string, at: string): Conversation {
+  const existing = state.conversations[id]
+  if (existing) return existing
+  // A message can legitimately arrive before this node saw the opening — a
+  // journal is not guaranteed to start at the beginning of a relationship.
+  const created: Conversation = {
+    conversationId: id,
+    participants: [],
+    state: 'active',
+    createdAt: at,
+    updatedAt: at,
+    crossesOwnershipBoundary: false,
+  }
+  state.conversations[id] = created
+  return created
+}
+
+export function relationKeyOf(sourceAgentId: string, targetAgentId: string, type: string): string {
+  return sourceAgentId + '|' + targetAgentId + '|' + type
 }
 
 /** Fold one event. Returns a NEW state; the input is never mutated. */
@@ -448,6 +490,97 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     return
   }
 
+  if (isEventOfType(event, 'conversation.opened')) {
+    const id = conversationIdOf(event)
+    if (!id) return
+    const conversation = ensureConversation(state, id, at)
+    conversation.participants = event.payload.participants.map((p) => ({ ...p }))
+    conversation.crossesOwnershipBoundary = event.payload.crossesOwnershipBoundary
+    // An opening does not by itself mean the far side agreed to talk. Only
+    // `conversation.accepted` moves it out of pending — that separation IS the
+    // acceptance gate, expressed in the state machine rather than in a flag.
+    conversation.state = 'pending'
+    conversation.createdAt = at
+    conversation.updatedAt = at
+    for (const participant of conversation.participants) ensureAgent(state, participant.agentId, at)
+    return
+  }
+
+  if (isEventOfType(event, 'conversation.accepted')) {
+    const id = conversationIdOf(event)
+    if (!id) return
+    const conversation = ensureConversation(state, id, at)
+    conversation.state = 'accepted'
+    conversation.updatedAt = at
+    return
+  }
+
+  if (isEventOfType(event, 'conversation.rejected')) {
+    const id = conversationIdOf(event)
+    if (!id) return
+    const conversation = ensureConversation(state, id, at)
+    conversation.state = 'rejected'
+    conversation.updatedAt = at
+    return
+  }
+
+  if (isEventOfType(event, 'conversation.closed')) {
+    const id = conversationIdOf(event)
+    if (!id) return
+    const conversation = ensureConversation(state, id, at)
+    conversation.state = 'closed'
+    conversation.updatedAt = at
+    return
+  }
+
+  if (isEventOfType(event, 'conversation.message_sent') || isEventOfType(event, 'conversation.message_received')) {
+    const id = conversationIdOf(event)
+    if (!id) return
+    const conversation = ensureConversation(state, id, at)
+    conversation.lastMessageId = event.payload.messageId
+    conversation.updatedAt = at
+    // Traffic on a rejected or closed thread does not silently revive it; only
+    // an explicit acceptance does. Anything else would let a peer talk its way
+    // back in past a decision someone already made.
+    if (conversation.state === 'accepted') conversation.state = 'active'
+    return
+  }
+
+  if (isEventOfType(event, 'relation.recorded')) {
+    const { sourceAgentId, targetAgentId, type } = event.payload
+    const key = relationKeyOf(sourceAgentId, targetAgentId, type)
+    const existing = state.relations[key]
+    if (existing) {
+      // Strength counts reassertions. It is a frequency, not a judgement — a
+      // reputation score is a different object with different rules.
+      existing.strength += 1
+      existing.updatedAt = at
+      if (event.payload.visibility) existing.visibility = event.payload.visibility
+    } else {
+      state.relations[key] = {
+        sourceAgentId,
+        targetAgentId,
+        type,
+        createdAt: at,
+        updatedAt: at,
+        strength: 1,
+        visibility: event.payload.visibility ?? 'private',
+      }
+    }
+    ensureAgent(state, sourceAgentId, at)
+    ensureAgent(state, targetAgentId, at)
+    return
+  }
+
+  if (isEventOfType(event, 'workspace.bound')) {
+    // The binding itself is local state; what belongs in the shared model is
+    // only that this Agent runs on that runtime and node.
+    const agent = ensureAgent(state, event.payload.agentId, at)
+    agent.nodeId = event.payload.nodeId
+    agent.runtimeKind = event.payload.runtime
+    return
+  }
+
   // Exhaustiveness: a new EventType must be handled above or explicitly ignored.
   const unreachable: never = event
   void unreachable
@@ -473,6 +606,11 @@ function cloneState(state: NetworkState): NetworkState {
     toolCalls: mapValues(state.toolCalls, (c) => ({ ...c })),
     approvals: mapValues(state.approvals, (a) => ({ ...a })),
     quotes: mapValues(state.quotes, (q) => ({ ...q })),
+    conversations: mapValues(state.conversations, (c) => ({
+      ...c,
+      participants: c.participants.map((p) => ({ ...p })),
+    })),
+    relations: mapValues(state.relations, (r) => ({ ...r })),
     recent: [...state.recent],
     recentTruncated: state.recentTruncated,
     streamCursors: { ...state.streamCursors },

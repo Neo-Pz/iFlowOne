@@ -41,6 +41,16 @@ export interface CreateEdgeOptions {
    * is what makes an offline edge catch up later rather than lose history.
    */
   queueForSync?: boolean
+  /**
+   * Which journaled facts may leave this machine at all.
+   *
+   * Defaults to {@link isPublishable}. Override to tighten, not to widen: a
+   * fact excluded here is excluded structurally — it never reaches the outbox,
+   * so no redaction bug, sync misconfiguration or future upload path can leak
+   * it. That is a stronger guarantee than scrubbing on the way out, and it is
+   * the one the conversation layer relies on.
+   */
+  publishable?: (event: AnyIFlowEvent) => boolean
   /** Announce this edge's own Agent on startup. Default true. */
   registerSelf?: boolean
   /** Sign every journaled fact at the origin. */
@@ -82,6 +92,33 @@ export interface JournalVerification {
   forged: { eventId: string; seq: number }[]
 }
 
+/**
+ * Fact types that stay on the machine that observed them.
+ *
+ * These are not secret-by-accident; they are local by definition:
+ *
+ *   conversation.*  — who is talking to whom, and when. Even without message
+ *                     text, a Community holding every thread between every
+ *                     pair of Agents holds the social graph of the network in
+ *                     a form nobody consented to publish. Conversations are
+ *                     point-to-point; the relay model that eventually carries
+ *                     them is store-and-forward of sealed envelopes, not a
+ *                     server-side log.
+ *   workspace.bound — binds an Agent to a runtime and node. Harmless alone,
+ *                     but it is the fact whose local sibling carries a
+ *                     filesystem path, and keeping the pair together on one
+ *                     side of the boundary is what stops the path following it.
+ *
+ * `relation.recorded` is deliberately NOT here: a relationship is exactly what
+ * a network is for, and its visibility is already the relation's own field.
+ */
+const LOCAL_ONLY_EVENT_PREFIXES = ['conversation.', 'workspace.'] as const
+
+/** True when a fact is allowed to leave the machine that observed it. */
+export function isPublishable(event: AnyIFlowEvent): boolean {
+  return !LOCAL_ONLY_EVENT_PREFIXES.some((prefix) => event.type.startsWith(prefix))
+}
+
 export async function createEdge(options: CreateEdgeOptions): Promise<IFlowEdge> {
   const { ports, descriptor } = options
   const paths = edgePaths(descriptor.workspaceRoot)
@@ -98,10 +135,12 @@ export async function createEdge(options: CreateEdgeOptions): Promise<IFlowEdge>
   const disposables: Disposable[] = []
   const queueForSync = options.queueForSync ?? true
 
+  const publishable = options.publishable ?? isPublishable
+
   disposables.push(
     journal.subscribe((event: AnyIFlowEvent) => {
       views.ingest(event)
-      if (queueForSync) {
+      if (queueForSync && publishable(event)) {
         // Fire and forget: a failed enqueue must not undo a durable fact. The
         // event is already in the journal, so a later flush can recover it.
         void outbox.enqueue(event).catch((error: unknown) => {

@@ -11,9 +11,11 @@ import type {
   ActivityFeedView,
   AgentStateView,
   AnyIFlowEvent,
+  ConversationListView,
   NetworkGraphView,
   NetworkState,
   ProjectionSet,
+  RequestsView,
   RoomView,
   TaskGraphFilter,
   TaskGraphView,
@@ -25,7 +27,9 @@ import {
   projectActivityFeed,
   projectAgentState,
   projectAll,
+  projectConversations,
   projectNetworkGraph,
+  projectRequests,
   projectRoom,
   projectTaskGraph,
   reduceEvents,
@@ -90,6 +94,14 @@ export class LocalProjection {
 
   room(roomId: string): ViewEnvelope<RoomView> | undefined {
     return projectRoom(this.state, this.options(), roomId)
+  }
+
+  conversations(): ViewEnvelope<ConversationListView> {
+    return projectConversations(this.state, this.options())
+  }
+
+  requests(): ViewEnvelope<RequestsView> {
+    return projectRequests(this.state, this.options())
   }
 
   all(): ProjectionSet {

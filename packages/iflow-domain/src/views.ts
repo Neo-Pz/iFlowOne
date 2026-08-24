@@ -10,8 +10,10 @@
 import type {
   Agent,
   Approval,
+  Conversation,
   ExecutionAttempt,
   Goal,
+  IncomingRequest,
   Quote,
   Room,
   Settlement,
@@ -50,6 +52,34 @@ export interface NetworkNode {
 }
 
 /**
+ * Conversations as threads, with no message content anywhere in the shape.
+ *
+ * A reader can see that a thread exists, who is in it, whether it crosses an
+ * ownership boundary and whether it is waiting on someone. What was said is
+ * not here and is not obtainable from here.
+ */
+export interface ConversationListView {
+  conversations: Conversation[]
+  /** How many are waiting on a decision at this node. */
+  pending: number
+}
+
+/**
+ * The local "what is waiting for me" list.
+ *
+ * Deliberately not an activity feed: an activity feed answers what happened,
+ * which is a different and much less useful question for the person sitting in
+ * front of the machine.
+ *
+ * `preview` is absent here. The excerpt lives in local runtime state and is
+ * joined in by the edge that owns it, so the shared model never carries
+ * message text even for a request that is about a message.
+ */
+export interface RequestsView {
+  requests: Omit<IncomingRequest, 'preview'>[]
+}
+
+/**
  * Relationship edges only. Raw log lines are deliberately NOT edges — the graph
  * shows delegation, dependency, participation, trust, delivery and approval.
  */
@@ -61,6 +91,12 @@ export type NetworkEdgeKind =
   | 'trust'
   | 'delivery'
   | 'approval'
+  // Drawn from AgentRelation rather than from work: who has talked to whom,
+  // who has actually worked with whom, who has transacted. A network is made
+  // of relationships, and these are the only edges that are one.
+  | 'contact'
+  | 'collaboration'
+  | 'transaction'
 
 export interface NetworkEdge {
   id: string
@@ -94,11 +130,12 @@ export interface ActivityEntry {
   correlationId: string
   actorId: string
   actorKind: 'agent' | 'human' | 'system'
-  subjectKind: 'agent' | 'goal' | 'task' | 'room' | 'artifact'
+  subjectKind: 'agent' | 'goal' | 'task' | 'room' | 'artifact' | 'conversation'
   subjectId: string
   taskId?: string
   goalId?: string
   roomId?: string
+  conversationId?: string
   /** One-line human summary derived from the payload — never a model guess. */
   summary: string
 }
@@ -168,13 +205,17 @@ export interface ProjectionSet {
   network: ViewEnvelope<NetworkGraphView>
   activity: ViewEnvelope<ActivityFeedView>
   tasks: ViewEnvelope<TaskGraphView>
+  conversations: ViewEnvelope<ConversationListView>
+  requests: ViewEnvelope<RequestsView>
 }
 
 export type {
   Agent,
   Approval,
+  Conversation,
   ExecutionAttempt,
   Goal,
+  IncomingRequest,
   Quote,
   Room,
   Settlement,

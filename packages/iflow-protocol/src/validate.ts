@@ -22,7 +22,7 @@ export interface ValidationResult {
 }
 
 const ISSUER_KINDS = new Set(['agent', 'human', 'system'])
-const SUBJECT_KINDS = new Set(['agent', 'goal', 'task', 'room', 'artifact'])
+const SUBJECT_KINDS = new Set(['agent', 'goal', 'task', 'room', 'artifact', 'conversation'])
 const EVIDENCE_SOURCES = new Set(['dsh', 'a2a', 'user', 'projection'])
 
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/
@@ -111,7 +111,7 @@ export function validateEvent(candidate: unknown): ValidationResult {
     check.enum(subject['kind'], 'subject.kind', SUBJECT_KINDS)
   }
 
-  for (const key of ['goalId', 'taskId', 'roomId'] as const) {
+  for (const key of ['goalId', 'taskId', 'roomId', 'conversationId'] as const) {
     check.string(event[key], key, { required: false })
   }
 

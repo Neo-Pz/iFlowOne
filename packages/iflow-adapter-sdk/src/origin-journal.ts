@@ -31,6 +31,7 @@ export interface RecordEventInput<K extends EventType = EventType> {
   goalId?: string
   taskId?: string
   roomId?: string
+  conversationId?: string
   /** When the origin asserts it happened. Defaults to now. */
   occurredAt?: string
   trace?: IFlowEvent['trace']
@@ -231,6 +232,7 @@ export class OriginJournal {
       goalId: input.goalId,
       taskId: input.taskId,
       roomId: input.roomId,
+      conversationId: input.conversationId,
       trace: input.trace,
       payload: input.payload,
       evidence: input.evidence ?? { source: 'dsh' },
