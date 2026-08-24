@@ -1,6 +1,6 @@
 {
   "name": "iflow-domain",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "iFlow Agent Network ontology: Agent, Goal, Task, Room, Event; state machines, reducers, projectors and read-model contracts.",
   "license": "Apache-2.0",
