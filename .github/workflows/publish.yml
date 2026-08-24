@@ -74,12 +74,14 @@ jobs:
           done
           echo "all three packages are at $tag"
 
-      # Type errors do not fail a build here — tsup strips types rather than
-      # checking them — so this is the only thing standing between a type error
-      # and a published `.d.ts` that does not compile for anyone who installs it.
-      - run: pnpm -r run typecheck
-
       - run: pnpm -r --filter "./packages/*" run build
+
+      # Each package exposes its generated declaration file through `exports`.
+      # Build the workspace in dependency order before typechecking consumers:
+      # on a clean runner, `iflow-domain` must resolve the declarations emitted
+      # by `iflow-protocol`. Type errors still fail here — tsup does not replace
+      # this check — before any package is published.
+      - run: pnpm -r run typecheck
 
       - run: pnpm vitest run
 
