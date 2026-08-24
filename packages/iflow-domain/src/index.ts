@@ -1,12 +1,19 @@
 export type {
   Agent,
+  AgentRelation,
+  AgentRelationType,
   AgentState,
   AgentPresence,
   AgentExecution,
   AgentCoordination,
   Approval,
+  Conversation,
+  ConversationParticipant,
+  ConversationState,
   ExecutionAttempt,
   Goal,
+  IncomingRequest,
+  IncomingRequestKind,
   PrincipalRef,
   Room,
   Quote,
@@ -17,16 +24,27 @@ export type {
   TaskState,
   ToolCall,
   TrustEvidence,
+  WorkspaceBinding,
 } from './objects.js'
 export { INITIAL_AGENT_STATE, TASK_TRANSITIONS, canTransition } from './objects.js'
 
-export type { AnyIFlowEvent, DomainEvent, EventPayloadMap, EventType, SuggestionKind } from './event-types.js'
+export type {
+  AcceptanceDecider,
+  AnyIFlowEvent,
+  DomainEvent,
+  EventPayloadMap,
+  EventType,
+  MessageActorType,
+  MessageOrigin,
+  SuggestionKind,
+} from './event-types.js'
 export { EVENT_TYPES, isDomainEvent, isEventOfType, isKnownEventType } from './event-types.js'
 
 export type {
   ActivityEntry,
   ActivityFeedView,
   AgentStateView,
+  ConversationListView,
   NetworkEdge,
   NetworkEdgeKind,
   NetworkGraphView,
@@ -35,6 +53,7 @@ export type {
   PriceBand,
   ProjectionMeta,
   ProjectionSet,
+  RequestsView,
   RoomView,
   TaskGraphNode,
   TaskGraphView,
@@ -49,6 +68,7 @@ export {
   applyEvents,
   emptyNetworkState,
   reduceEvents,
+  relationKeyOf,
   streamKeyOf,
 } from './reducers/network-state.js'
 
@@ -61,7 +81,9 @@ export type {
 export {
   ACTIVITY_FEED_PROJECTION_VERSION,
   AGENT_STATE_PROJECTION_VERSION,
+  CONVERSATIONS_PROJECTION_VERSION,
   NETWORK_GRAPH_PROJECTION_VERSION,
+  REQUESTS_PROJECTION_VERSION,
   ROOM_PROJECTION_VERSION,
   MARKET_PROJECTION_VERSION,
   TASK_GRAPH_PROJECTION_VERSION,
@@ -69,9 +91,11 @@ export {
   projectActivityFeed,
   projectAgentState,
   projectAll,
+  projectConversations,
   projectMarket,
   selectPublishableSettlements,
   projectNetworkGraph,
+  projectRequests,
   projectRoom,
   projectTaskGraph,
   projectTrustEvidence,

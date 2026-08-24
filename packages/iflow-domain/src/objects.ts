@@ -261,3 +261,121 @@ export interface Approval {
   resolvedAt?: string
   decision?: 'allowed' | 'rejected' | 'cancelled' | 'unavailable'
 }
+
+/**
+ * A Conversation is a communication thread between Agents. A Session is a
+ * Runtime's private execution container. They are different objects with
+ * different lifetimes, and this is the single most important distinction in
+ * the model.
+ *
+ * Two edges talking share one `conversationId`; each independently maps it to
+ * a local session id that the other never learns. Deleting a local session
+ * does not end the Conversation — the next message on the same id simply binds
+ * a fresh one.
+ *
+ * There is no transcript here, and there never will be. iFlow owns
+ * relationships, not conversations.
+ */
+export type ConversationState = 'pending' | 'accepted' | 'active' | 'rejected' | 'closed'
+
+export interface ConversationParticipant {
+  agentId: string
+  did?: string
+  /**
+   * The Principal that owns this participant.
+   *
+   * This is what makes "does this Conversation cross an ownership boundary" a
+   * computable predicate rather than a comment. iFlow governs crossings of
+   * ownership boundaries: two Agents under the same Principal coordinating is
+   * that Principal's internal business, while two Agents under different
+   * Principals is precisely what needs identity, authorization and settlement.
+   */
+  principalId?: string
+  role: 'initiator' | 'recipient'
+  joinedAt: string
+}
+
+export interface Conversation {
+  conversationId: string
+  participants: ConversationParticipant[]
+  state: ConversationState
+  createdAt: string
+  updatedAt: string
+  /** Derived from the participants, never asserted by a peer. */
+  crossesOwnershipBoundary: boolean
+  lastMessageId?: string
+}
+
+/**
+ * How two Agents are related, as a durable object rather than something
+ * re-derived from task history.
+ *
+ * The Network graph renders these. An edge drawn from a Task is a snapshot of
+ * work; an edge drawn from an AgentRelation is a relationship, which is what a
+ * network is actually made of.
+ */
+export type AgentRelationType =
+  | 'followed'
+  | 'contacted'
+  | 'trusted'
+  | 'worked_with'
+  | 'delegated_to'
+  | 'transacted_with'
+
+export interface AgentRelation {
+  sourceAgentId: string
+  targetAgentId: string
+  type: AgentRelationType
+  createdAt: string
+  updatedAt: string
+  /** How many times this relation has been reasserted. Not a reputation score. */
+  strength: number
+  visibility: 'private' | 'public'
+}
+
+/**
+ * Something waiting on a human at this node.
+ *
+ * The local question is never "what happened" — that is the Activity feed —
+ * but "what is waiting for me". Contact requests, permission requests, task
+ * proposals, quotes and payment requests all answer that question, so they
+ * share one object and one inbox.
+ */
+export type IncomingRequestKind =
+  | 'conversation'
+  | 'permission'
+  | 'task_proposal'
+  | 'quote'
+  | 'delivery'
+  | 'payment'
+
+export interface IncomingRequest {
+  requestId: string
+  kind: IncomingRequestKind
+  conversationId?: string
+  fromAgentId: string
+  fromDid?: string
+  receivedAt: string
+  expiresAt?: string
+  state: 'pending' | 'accepted' | 'rejected' | 'expired'
+  /**
+   * A short excerpt so a person can decide. Local only: it is the one free-text
+   * field on this object and it is never published.
+   */
+  preview: string
+}
+
+/**
+ * Which local working directory an Agent acts in.
+ *
+ * `workspaceRoot` is a path on someone's disk. The fact that a binding exists
+ * may be public; the path never is — see the publish filter in
+ * `iflow-adapter-sdk`, which keeps `workspace.bound` off the wire entirely.
+ */
+export interface WorkspaceBinding {
+  agentId: string
+  runtime: string
+  nodeId: string
+  workspaceRoot: string
+  boundAt: string
+}

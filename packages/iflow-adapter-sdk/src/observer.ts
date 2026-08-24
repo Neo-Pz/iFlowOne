@@ -11,10 +11,15 @@
  */
 
 import type {
+  AcceptanceDecider,
   AgentCoordination,
   AgentExecution,
   AgentPresence,
+  AgentRelationType,
   AnyIFlowEvent,
+  ConversationParticipant,
+  MessageActorType,
+  MessageOrigin,
   SettlementVisibility,
   TrustEvidence,
 } from 'iflow-domain'
@@ -543,6 +548,176 @@ export class RuntimeObserver {
       currency: input.currency ?? 'USD',
       priceSource: input.priceSource ?? 'unknown',
     })
+  }
+
+  // ── Conversations ───────────────────────────────────────────────────────
+  //
+  // A Conversation is the durable thread between two Agents; each side's
+  // Session is a private execution container underneath it. Nothing here
+  // carries message text — the digest is the only thing that crosses, and it
+  // proves the message to whoever already holds it without revealing it to
+  // anyone who does not.
+
+  conversationOpened(input: {
+    conversationId: string
+    participants: ConversationParticipant[]
+    initiatedBy: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    // Derived here rather than trusted from a caller: whether a conversation
+    // crosses an ownership boundary decides whether iFlow governs it at all,
+    // so it is computed from the participants every time.
+    const principals = new Set(
+      input.participants.map((p) => p.principalId).filter((id): id is string => typeof id === 'string'),
+    )
+    return this.conversationEvent('conversation.opened', input.conversationId, input.context, {
+      participants: input.participants,
+      initiatedBy: input.initiatedBy,
+      crossesOwnershipBoundary: principals.size > 1,
+    })
+  }
+
+  conversationMessageSent(input: {
+    conversationId: string
+    messageId: string
+    toAgentId: string
+    contentDigest: string
+    actorType?: MessageActorType
+    origin?: MessageOrigin
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.conversationEvent('conversation.message_sent', input.conversationId, input.context, {
+      messageId: input.messageId,
+      toAgentId: input.toAgentId,
+      actorType: input.actorType ?? 'agent',
+      origin: input.origin ?? 'agent',
+      contentDigest: input.contentDigest,
+    })
+  }
+
+  conversationMessageReceived(input: {
+    conversationId: string
+    messageId: string
+    fromAgentId: string
+    contentDigest: string
+    actorType?: MessageActorType
+    origin?: MessageOrigin
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.conversationEvent('conversation.message_received', input.conversationId, input.context, {
+      messageId: input.messageId,
+      fromAgentId: input.fromAgentId,
+      actorType: input.actorType ?? 'agent',
+      origin: input.origin ?? 'a2a',
+      contentDigest: input.contentDigest,
+    })
+  }
+
+  conversationAccepted(input: {
+    conversationId: string
+    acceptedBy: string
+    decidedBy: AcceptanceDecider
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.conversationEvent('conversation.accepted', input.conversationId, input.context, {
+      acceptedBy: input.acceptedBy,
+      decidedBy: input.decidedBy,
+    })
+  }
+
+  conversationRejected(input: {
+    conversationId: string
+    rejectedBy: string
+    decidedBy: AcceptanceDecider
+    reason?: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.conversationEvent('conversation.rejected', input.conversationId, input.context, {
+      rejectedBy: input.rejectedBy,
+      decidedBy: input.decidedBy,
+      reason: input.reason,
+    })
+  }
+
+  conversationClosed(input: {
+    conversationId: string
+    reason?: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.conversationEvent('conversation.closed', input.conversationId, input.context, {
+      reason: input.reason,
+    })
+  }
+
+  relationRecorded(input: {
+    sourceAgentId: string
+    targetAgentId: string
+    type: AgentRelationType
+    visibility?: 'private' | 'public'
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.safely('relation.recorded', () =>
+      this.journal.record({
+        type: 'relation.recorded',
+        subject: { kind: 'agent', id: input.sourceAgentId },
+        issuer: input.context?.issuer ?? this.agentIssuer(input.sourceAgentId),
+        payload: {
+          sourceAgentId: input.sourceAgentId,
+          targetAgentId: input.targetAgentId,
+          type: input.type,
+          visibility: input.visibility,
+        },
+        ...spread(input.context),
+      }),
+    )
+  }
+
+  /**
+   * Which runtime and node an Agent works on.
+   *
+   * The workspace PATH is deliberately not a parameter. It is local state, it
+   * identifies a person's disk layout, and there is no reader on the network
+   * that needs it.
+   */
+  workspaceBound(input: { agentId: string; runtime?: string; context?: ObserverContext }): Promise<
+    AnyIFlowEvent | undefined
+  > {
+    return this.safely('workspace.bound', () =>
+      this.journal.record({
+        type: 'workspace.bound',
+        subject: { kind: 'agent', id: input.agentId },
+        issuer: input.context?.issuer ?? this.agentIssuer(input.agentId),
+        payload: {
+          agentId: input.agentId,
+          runtime: input.runtime ?? this.descriptor.runtimeKind,
+          nodeId: this.descriptor.nodeId,
+        },
+        ...spread(input.context),
+      }),
+    )
+  }
+
+  /**
+   * Conversation facts share a correlation keyed on the conversation, so a
+   * whole thread reads as one flow the way a task's lifecycle does.
+   */
+  private conversationEvent<P>(
+    type: Parameters<OriginJournal['record']>[0]['type'],
+    conversationId: string,
+    context: ObserverContext | undefined,
+    payload: P,
+  ): Promise<AnyIFlowEvent | undefined> {
+    return this.safely(type, () =>
+      this.journal.record({
+        type,
+        subject: { kind: 'conversation', id: conversationId },
+        conversationId,
+        correlationId: context?.correlationId ?? this.correlationFor(conversationId),
+        payload: payload as never,
+        ...spreadWithoutCorrelation(context),
+        ...(context?.issuer ? { issuer: context.issuer } : {}),
+      }),
+    )
   }
 
   private taskEvent<P>(

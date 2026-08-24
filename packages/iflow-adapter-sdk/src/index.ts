@@ -42,4 +42,4 @@ export type { EdgeServerOptions } from './edge-server.js'
 export { EDGE_ROUTE_PREFIX, bearerAuthorizer, mountEdgeServer } from './edge-server.js'
 
 export type { CreateEdgeOptions, IFlowEdge, JournalVerification } from './create-edge.js'
-export { createEdge } from './create-edge.js'
+export { createEdge, isPublishable } from './create-edge.js'

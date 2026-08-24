@@ -89,6 +89,13 @@ export function mountEdgeServer(
     if (!view) throw new Error(`no such room: ${roomId}`)
     return view
   })
+  // Threads and their state, never their contents. Safe to serve to anything
+  // already allowed to read a projection, because there is nothing said in it.
+  get('/projection/conversations', () => projection.conversations())
+  // "What is waiting for me", which is the question a local operator actually
+  // has. The excerpt is not here; whoever renders this joins it against state
+  // that never left the machine.
+  get('/projection/requests', () => projection.requests())
 
   get('/journal', (request) => {
     const fromSeq = Number.parseInt(request.query['fromSeq'] ?? '0', 10)

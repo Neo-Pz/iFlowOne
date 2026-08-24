@@ -8,6 +8,7 @@
 
 import type { AnyIFlowEvent } from '../event-types.js'
 import { isEventOfType, isKnownEventType } from '../event-types.js'
+import type { AgentRelationType } from '../objects.js'
 import type { NetworkState } from '../reducers/network-state.js'
 import type {
   ActivityEntry,
@@ -15,11 +16,13 @@ import type {
   PriceBand,
   ActivityFeedView,
   AgentStateView,
+  ConversationListView,
   NetworkEdge,
   NetworkGraphView,
   NetworkNode,
   ProjectionMeta,
   ProjectionSet,
+  RequestsView,
   Settlement,
   RoomView,
   TaskGraphView,
@@ -34,6 +37,8 @@ export const TASK_GRAPH_PROJECTION_VERSION = 1
 export const ROOM_PROJECTION_VERSION = 1
 export const TRUST_EVIDENCE_PROJECTION_VERSION = 1
 export const MARKET_PROJECTION_VERSION = 1
+export const CONVERSATIONS_PROJECTION_VERSION = 1
+export const REQUESTS_PROJECTION_VERSION = 1
 
 /**
  * `builtAt` is the only place a projector needs a clock, so it is injected
@@ -145,6 +150,22 @@ export function projectNetworkGraph(state: NetworkState, options: ProjectOptions
     })
   }
 
+  // Agent-to-agent edges, drawn from AgentRelation rather than inferred from
+  // work. Every edge above is a projection of a Task or a Room; these are the
+  // only ones that say something about the agents themselves, which is what a
+  // network view is for.
+  for (const relation of Object.values(state.relations)) {
+    addEdge({
+      id: `rel:${relation.sourceAgentId}->${relation.targetAgentId}:${relation.type}`,
+      source: relation.sourceAgentId,
+      target: relation.targetAgentId,
+      kind: RELATION_EDGE_KIND[relation.type],
+      // Strength is a count of reassertions, and it is shown rather than
+      // folded into the kind so a reader can tell one contact from fifty.
+      label: relation.strength > 1 ? `${relation.type} ×${relation.strength}` : relation.type,
+    })
+  }
+
   for (const agent of Object.values(state.agents)) {
     if (agent.trustEvidence.length === 0 || !agent.did) continue
     // Trust is shown as evidence attached to the Agent node, not as a score.
@@ -153,6 +174,16 @@ export function projectNetworkGraph(state: NetworkState, options: ProjectOptions
   }
 
   return { meta: meta(state, NETWORK_GRAPH_PROJECTION_VERSION, options), data: { nodes, edges } }
+}
+
+/** Which graph edge each relationship draws as. */
+const RELATION_EDGE_KIND: Record<AgentRelationType, NetworkEdge['kind']> = {
+  followed: 'contact',
+  contacted: 'contact',
+  trusted: 'trust',
+  worked_with: 'collaboration',
+  delegated_to: 'delegation',
+  transacted_with: 'transaction',
 }
 
 /** Micro-units back to a human-readable amount, for display only. */
@@ -210,7 +241,87 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
   if (isEventOfType(event, 'task.settled')) {
     return `Settled ${formatAmount(event.payload.amountMicros, event.payload.currency)} (${event.payload.visibility})`
   }
+  if (isEventOfType(event, 'conversation.opened')) {
+    const who = event.payload.participants.map((p) => p.agentId).join(' ↔ ')
+    const boundary = event.payload.crossesOwnershipBoundary ? ' (crosses ownership boundary)' : ''
+    return `Conversation opened: ${who}${boundary}`
+  }
+  // No excerpt, on purpose: an activity line is read by whoever can read the
+  // projection, which is a wider audience than the two participants.
+  if (isEventOfType(event, 'conversation.message_sent')) {
+    return `Message sent to ${event.payload.toAgentId} (${event.payload.actorType} via ${event.payload.origin})`
+  }
+  if (isEventOfType(event, 'conversation.message_received')) {
+    return `Message received from ${event.payload.fromAgentId} (${event.payload.actorType} via ${event.payload.origin})`
+  }
+  if (isEventOfType(event, 'conversation.accepted')) {
+    return `Conversation accepted by ${event.payload.acceptedBy} (${event.payload.decidedBy})`
+  }
+  if (isEventOfType(event, 'conversation.rejected')) {
+    const why = event.payload.reason ? `: ${event.payload.reason}` : ''
+    return `Conversation rejected by ${event.payload.rejectedBy} (${event.payload.decidedBy})${why}`
+  }
+  if (isEventOfType(event, 'conversation.closed')) {
+    return `Conversation closed${event.payload.reason ? `: ${event.payload.reason}` : ''}`
+  }
+  if (isEventOfType(event, 'relation.recorded')) {
+    return `${event.payload.sourceAgentId} ${event.payload.type} ${event.payload.targetAgentId}`
+  }
+  if (isEventOfType(event, 'workspace.bound')) {
+    return `Agent ${event.payload.agentId} bound to ${event.payload.runtime} on ${event.payload.nodeId}`
+  }
   return event.type
+}
+
+/**
+ * Threads, without their contents.
+ *
+ * `pending` is broken out because it is the number a person actually acts on:
+ * it is how many conversations are waiting for someone here to say yes or no.
+ */
+export function projectConversations(
+  state: NetworkState,
+  options: ProjectOptions,
+): ViewEnvelope<ConversationListView> {
+  const conversations = Object.values(state.conversations).sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  )
+  const pending = conversations.filter((c) => c.state === 'pending').length
+  return {
+    meta: meta(state, CONVERSATIONS_PROJECTION_VERSION, options),
+    data: { conversations, pending },
+  }
+}
+
+/**
+ * What is waiting on a human at this node.
+ *
+ * Today the only kind derivable from the shared model is a pending
+ * Conversation — a first contact nobody has answered yet. Permission requests,
+ * task proposals, quotes and payment requests join this list as their own
+ * events land, which is why the shape is a request list and not a
+ * conversation list.
+ *
+ * The excerpt is not here. Whoever renders this joins it against local state
+ * that never left the machine.
+ */
+export function projectRequests(state: NetworkState, options: ProjectOptions): ViewEnvelope<RequestsView> {
+  const requests = Object.values(state.conversations)
+    .filter((conversation) => conversation.state === 'pending')
+    .map((conversation) => {
+      const initiator = conversation.participants.find((p) => p.role === 'initiator')
+      return {
+        requestId: 'req-' + conversation.conversationId,
+        kind: 'conversation' as const,
+        conversationId: conversation.conversationId,
+        fromAgentId: initiator?.agentId ?? 'unknown',
+        fromDid: initiator?.did,
+        receivedAt: conversation.createdAt,
+        state: 'pending' as const,
+      }
+    })
+    .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+  return { meta: meta(state, REQUESTS_PROJECTION_VERSION, options), data: { requests } }
 }
 
 export function projectActivityFeed(state: NetworkState, options: ProjectOptions): ViewEnvelope<ActivityFeedView> {
@@ -226,6 +337,7 @@ export function projectActivityFeed(state: NetworkState, options: ProjectOptions
     taskId: event.taskId,
     goalId: event.goalId,
     roomId: event.roomId,
+    conversationId: event.conversationId,
     summary: summarizeEvent(event),
   }))
   return {
@@ -424,5 +536,7 @@ export function projectAll(state: NetworkState, options: ProjectOptions): Projec
     network: projectNetworkGraph(state, options),
     activity: projectActivityFeed(state, options),
     tasks: projectTaskGraph(state, options),
+    conversations: projectConversations(state, options),
+    requests: projectRequests(state, options),
   }
 }
