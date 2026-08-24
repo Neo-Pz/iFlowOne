@@ -1,0 +1,100 @@
+# Publish the contract packages to npm.
+#
+# These three packages are what other people build adapters against, so the
+# risk here is not a failed publish — it is a successful one. npm forbids
+# unpublishing after 24 hours, and a version that went out with a stale build
+# or a `workspace:*` dependency cannot be taken back, only superseded.
+#
+# So this refuses more than it does:
+#
+#   - the tag must match the version in the packages, so a tag can never
+#     publish a version nobody bumped
+#   - all three must agree on that version, because they are released together
+#     and a partial bump is how one of them silently depends on a version that
+#     does not exist
+#   - the build and the full test suite run first, on the tagged tree
+#
+# `pnpm publish -r` rather than three `npm publish` calls, for one reason that
+# matters: the packages depend on each other with `workspace:*`, and pnpm
+# rewrites that to the real version on the way out. `npm publish` would upload
+# the literal string and nobody could install any of them.
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+  # Publishing is irreversible, so it stays possible to rehearse the whole
+  # thing — checks, build, tests, and pnpm's own dry run — without shipping.
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Run every check and pack the tarballs, but do not publish'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # npm provenance: a signed, publicly verifiable statement of which commit and
+  # which workflow produced each tarball. Worth having anywhere; worth more
+  # here, where the packages are the trust contract other nodes verify against.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          # No `packageManager` field in package.json; the lockfile is v9.
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: The tag and the packages must agree
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          for package in iflow-protocol iflow-domain iflow-adapter-sdk; do
+            version=$(node -p "require('./packages/$package/package.json').version")
+            if [ "$version" != "$tag" ]; then
+              echo "::error::tag v$tag does not match $package@$version."
+              echo "::error::Bump every package to $tag, or tag v$version instead."
+              exit 1
+            fi
+          done
+          echo "all three packages are at $tag"
+
+      # Type errors do not fail a build here — tsup strips types rather than
+      # checking them — so this is the only thing standing between a type error
+      # and a published `.d.ts` that does not compile for anyone who installs it.
+      - run: pnpm -r run typecheck
+
+      - run: pnpm -r --filter "./packages/*" run build
+
+      - run: pnpm vitest run
+
+      - name: Publish
+        if: github.event_name == 'push'
+        # `-r` walks the packages in dependency order and rewrites `workspace:*`
+        # to the version being published. `--no-git-checks` because the tagged
+        # checkout is detached, which pnpm otherwise refuses to publish from.
+        # `access` is already `public` in each publishConfig.
+        run: pnpm publish -r --no-git-checks --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Pack only (dry run)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          pnpm -r --filter "./packages/*" exec npm pack --dry-run
+          echo "nothing was published"
