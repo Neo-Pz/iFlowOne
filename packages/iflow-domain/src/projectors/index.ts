@@ -8,7 +8,7 @@
 
 import type { AnyIFlowEvent } from '../event-types.js'
 import { isEventOfType, isKnownEventType } from '../event-types.js'
-import type { AgentRelationType } from '../objects.js'
+import type { AgentRelationType, ConversationParticipant } from '../objects.js'
 import type { NetworkState } from '../reducers/network-state.js'
 import type {
   ActivityEntry,
@@ -242,7 +242,7 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
     return `Settled ${formatAmount(event.payload.amountMicros, event.payload.currency)} (${event.payload.visibility})`
   }
   if (isEventOfType(event, 'conversation.opened')) {
-    const who = event.payload.participants.map((p) => p.agentId).join(' ↔ ')
+    const who = event.payload.participants.map((p: ConversationParticipant) => p.agentId).join(' ↔ ')
     const boundary = event.payload.crossesOwnershipBoundary ? ' (crosses ownership boundary)' : ''
     return `Conversation opened: ${who}${boundary}`
   }

@@ -16,6 +16,7 @@ import type {
   AgentRelation,
   Approval,
   Conversation,
+  ConversationParticipant,
   Goal,
   Quote,
   Room,
@@ -494,7 +495,7 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     const id = conversationIdOf(event)
     if (!id) return
     const conversation = ensureConversation(state, id, at)
-    conversation.participants = event.payload.participants.map((p) => ({ ...p }))
+    conversation.participants = event.payload.participants.map((p: ConversationParticipant) => ({ ...p }))
     conversation.crossesOwnershipBoundary = event.payload.crossesOwnershipBoundary
     // An opening does not by itself mean the far side agreed to talk. Only
     // `conversation.accepted` moves it out of pending — that separation IS the
