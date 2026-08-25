@@ -267,6 +267,7 @@ describe('local projection', () => {
       origin: { nodeId: 'node-test', streamId: 'edge', seq: 900 },
       occurredAt: '2026-01-01T00:00:00.000Z',
       correlationId: 'corr-future',
+      visibility: 'local',
       type: 'reputation.endorsed',
       issuer: { id: 'agent-x', kind: 'agent' },
       subject: { kind: 'agent', id: 'agent-x' },
@@ -414,6 +415,11 @@ describe('outbox', () => {
     }
 
     await runSlice(edge)
+    await edge.observer.agentRegistered({
+      agentId: 'agent-public',
+      label: 'public',
+      context: { visibility: 'public' },
+    })
     const result = await edge.outbox.flush(offlineSink, (id) => edge.journal.all().find((e) => e.id === id))
 
     expect(result.delivered).toBe(0)
@@ -426,6 +432,16 @@ describe('outbox', () => {
   it('does not create a second fact when an acknowledgement is lost (failure test 2)', async () => {
     const { edge } = await newEdge()
     await runSlice(edge)
+    await edge.observer.agentRegistered({
+      agentId: 'agent-public-a',
+      label: 'public-a',
+      context: { visibility: 'public' },
+    })
+    await edge.observer.agentRegistered({
+      agentId: 'agent-public-b',
+      label: 'public-b',
+      context: { visibility: 'public' },
+    })
 
     const acceptedIds = new Set<string>()
     let dropNextAck = true
@@ -447,7 +463,7 @@ describe('outbox', () => {
     await edge.outbox.flush(flakySink, resolve)
     expect(edge.outbox.pending().length).toBeGreaterThan(0)
     const acceptedAfterFirstAttempt = new Set(acceptedIds)
-    expect(acceptedAfterFirstAttempt.size).toBe(edge.journal.all().length)
+    expect(acceptedAfterFirstAttempt.size).toBe(edge.outbox.pending().length)
 
     // Attempt two: the same events go up again and this time the ack lands.
     await edge.outbox.flush(flakySink, resolve)
@@ -456,13 +472,17 @@ describe('outbox', () => {
     // The retry re-sent the same event identities, so a deduplicating sink
     // holds exactly one copy of each fact.
     expect(acceptedIds.size).toBe(acceptedAfterFirstAttempt.size)
-    expect(acceptedIds.size).toBe(edge.journal.all().length)
+    expect(acceptedIds.size).toBe(2)
   })
 
   it('acknowledging the same event twice changes nothing', async () => {
     const { edge } = await newEdge()
-    await edge.observer.taskCreated({ taskId: 'task-1', title: 'One' })
-    const ids = edge.journal.all().map((event) => event.id)
+    await edge.observer.taskCreated({
+      taskId: 'task-1',
+      title: 'One',
+      context: { visibility: 'public' },
+    })
+    const ids = edge.outbox.pending().map((entry) => entry.eventId)
 
     await edge.outbox.markDelivered(ids)
     await edge.outbox.markDelivered(ids)
@@ -474,7 +494,11 @@ describe('outbox', () => {
   it('survives a restart with its queue intact', async () => {
     const host = createMemoryHost()
     const first = await createEdge({ ports: host.ports, descriptor: host.descriptor })
-    await first.observer.taskCreated({ taskId: 'task-1', title: 'One' })
+    await first.observer.taskCreated({
+      taskId: 'task-1',
+      title: 'One',
+      context: { visibility: 'public' },
+    })
     const pendingBefore = first.outbox.pending().length
 
     const second = await createEdge({ ports: host.ports, descriptor: host.descriptor, registerSelf: false })

@@ -20,6 +20,10 @@ import type {
 } from './objects.js'
 
 export const EVENT_TYPES = [
+  // Stable Principal identity and its current rotatable authority.
+  'principal.declared',
+  'authority.rotated',
+  'authority.revoked',
   'agent.registered',
   'agent.presence_changed',
   'goal.created',
@@ -63,6 +67,8 @@ export const EVENT_TYPES = [
   'relation.recorded',
   // Which local runtime an Agent acts in. Never carries the path.
   'workspace.bound',
+  // Publishing is a new signed act; it never mutates a local fact.
+  'publication.created',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]
@@ -77,6 +83,25 @@ export function isKnownEventType(type: string): type is EventType {
 export type SuggestionKind = 'declared_plan' | 'derived_next_step' | 'suggested_action'
 
 export interface EventPayloadMap {
+  'principal.declared': {
+    principalId: string
+    authorityDid: string
+    authorityVersion: number
+    recoveryPolicy?: { policyId: string; version: number; digest: string }
+  }
+  'authority.rotated': {
+    principalId: string
+    previousAuthorityDid: string
+    authorityDid: string
+    authorityVersion: number
+    proof: string
+  }
+  'authority.revoked': {
+    principalId: string
+    authorityDid: string
+    authorityVersion: number
+    reason?: string
+  }
   'agent.registered': {
     label: string
     did?: string
@@ -213,6 +238,14 @@ export interface EventPayloadMap {
   }
   /** Subject is the Agent. Deliberately without `workspaceRoot`. */
   'workspace.bound': { agentId: string; runtime: string; nodeId: string }
+  'publication.created': {
+    publicationId: string
+    /** Domain-separated, nonce-hardened commitment to selected local facts. */
+    commitment: string
+    commitmentScheme: 'iflow-commitment-v1'
+    publishedByAgentId: string
+    summary?: string
+  }
 }
 
 /** Who produced the words in a message. The network actor is always the Agent. */

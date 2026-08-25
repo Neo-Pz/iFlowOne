@@ -9,7 +9,10 @@
  *     coexist without one bumping the other.
  */
 
-export const EVENT_SCHEMA_VERSION = 1
+export const EVENT_SCHEMA_VERSION = 2
+
+/** Schema v1 remains readable so an upgraded edge does not discard its journal. */
+export const LEGACY_EVENT_SCHEMA_VERSION = 1
 
 export const LEGACY_SYNC_VERSION = '20'
 
@@ -19,7 +22,7 @@ export interface VersionSupport {
 }
 
 export const LOCAL_VERSION_SUPPORT: VersionSupport = {
-  eventSchemaVersions: [EVENT_SCHEMA_VERSION],
+  eventSchemaVersions: [LEGACY_EVENT_SCHEMA_VERSION, EVENT_SCHEMA_VERSION],
   legacySyncVersion: LEGACY_SYNC_VERSION,
 }
 

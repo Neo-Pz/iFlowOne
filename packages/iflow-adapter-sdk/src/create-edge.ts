@@ -116,7 +116,13 @@ const LOCAL_ONLY_EVENT_PREFIXES = ['conversation.', 'workspace.'] as const
 
 /** True when a fact is allowed to leave the machine that observed it. */
 export function isPublishable(event: AnyIFlowEvent): boolean {
-  return !LOCAL_ONLY_EVENT_PREFIXES.some((prefix) => event.type.startsWith(prefix))
+  if (LOCAL_ONLY_EVENT_PREFIXES.some((prefix) => event.type.startsWith(prefix))) return false
+
+  // Schema v2 makes the decision explicit and signed. A missing visibility is
+  // therefore legacy v1 data: preserve the old boundary while it migrates,
+  // but never treat a new local fact as publishable.
+  if (event.visibility !== undefined) return event.visibility === 'public'
+  return event.schemaVersion === 1
 }
 
 export async function createEdge(options: CreateEdgeOptions): Promise<IFlowEdge> {
@@ -135,7 +141,9 @@ export async function createEdge(options: CreateEdgeOptions): Promise<IFlowEdge>
   const disposables: Disposable[] = []
   const queueForSync = options.queueForSync ?? true
 
-  const publishable = options.publishable ?? isPublishable
+  const publishable = options.publishable
+    ? (event: AnyIFlowEvent) => isPublishable(event) && options.publishable!(event)
+    : isPublishable
 
   disposables.push(
     journal.subscribe((event: AnyIFlowEvent) => {

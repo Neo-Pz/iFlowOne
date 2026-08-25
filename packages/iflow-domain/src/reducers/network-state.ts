@@ -16,6 +16,7 @@ import type {
   AgentRelation,
   Approval,
   Conversation,
+  ConversationParticipant,
   Goal,
   Quote,
   Room,
@@ -494,7 +495,7 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     const id = conversationIdOf(event)
     if (!id) return
     const conversation = ensureConversation(state, id, at)
-    conversation.participants = event.payload.participants.map((p) => ({ ...p }))
+    conversation.participants = event.payload.participants.map((p: ConversationParticipant) => ({ ...p }))
     conversation.crossesOwnershipBoundary = event.payload.crossesOwnershipBoundary
     // An opening does not by itself mean the far side agreed to talk. Only
     // `conversation.accepted` moves it out of pending — that separation IS the
@@ -578,6 +579,18 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     const agent = ensureAgent(state, event.payload.agentId, at)
     agent.nodeId = event.payload.nodeId
     agent.runtimeKind = event.payload.runtime
+    return
+  }
+
+  if (
+    isEventOfType(event, 'principal.declared') ||
+    isEventOfType(event, 'authority.rotated') ||
+    isEventOfType(event, 'authority.revoked') ||
+    isEventOfType(event, 'publication.created')
+  ) {
+    // P0 freezes these facts before adding a private Principal projection or
+    // a public publication index. The shared network state must not infer
+    // ownership from them in the meantime.
     return
   }
 

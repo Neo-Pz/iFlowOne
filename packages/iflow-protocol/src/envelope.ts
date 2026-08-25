@@ -15,7 +15,7 @@ export interface IFlowIssuer {
 
 /** What the fact is about. */
 export interface IFlowSubject {
-  kind: 'agent' | 'goal' | 'task' | 'room' | 'artifact' | 'conversation'
+  kind: 'agent' | 'goal' | 'task' | 'room' | 'artifact' | 'conversation' | 'principal' | 'publication'
   id: string
 }
 
@@ -40,6 +40,15 @@ export interface IFlowEvidence {
   signature?: string
 }
 
+/**
+ * Whether an origin fact may leave the node that observed it.
+ *
+ * `local` is the safe default. Visibility is part of the signed envelope, so
+ * publishing a fact later requires a new publication event rather than
+ * mutating history.
+ */
+export type IFlowVisibility = 'local' | 'public'
+
 /** An append-only business fact. Events describe what already happened. */
 export interface IFlowEvent<T = unknown> {
   id: string
@@ -51,6 +60,10 @@ export interface IFlowEvent<T = unknown> {
   observedAt?: string
   correlationId: string
   causationId?: string
+  /** Stable owner/authorizer identity. Never substitute an authority, node, or Agent DID. */
+  principalId?: string
+  /** Signed at the origin. Schema v2 and later require this field. */
+  visibility: IFlowVisibility
   type: string
   issuer: IFlowIssuer
   subject: IFlowSubject

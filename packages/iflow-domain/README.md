@@ -13,7 +13,7 @@ npm i iflow-domain
 ## Five first-class objects
 
 **Agent** (who is acting), **Goal** (why), **Task** (what work), **Room** (who
-is collaborating), **Event** (what happened). Plus 24 event types with typed
+is collaborating), **Event** (what happened). Plus a typed event vocabulary
 payloads, and the read-model contracts a UI consumes.
 
 Agent state has three independent axes, on purpose:
@@ -24,6 +24,17 @@ Agent state has three independent axes, on purpose:
 
 All three are true at once, and collapsing them into one enum is what makes a
 network view lie about who is actually stuck.
+
+## Stable Principal, rotatable authority
+
+`principalId` names the stable person or organization. `authorityDid` names
+the current key allowed to authorize for it, and `authorityVersion` prevents a
+rollback to an older key. They are deliberately separate from Node and Agent
+DIDs. P0 models future recovery but does not claim that a lost `did:key` can be
+recovered.
+
+`My Agents` means owned Agents plus Agents covered by a private `send_as`
+grant. Ownership itself is private account data, not a public graph edge.
 
 ## Facts, not intentions
 

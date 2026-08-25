@@ -8,7 +8,7 @@
 
 import type { AnyIFlowEvent } from '../event-types.js'
 import { isEventOfType, isKnownEventType } from '../event-types.js'
-import type { AgentRelationType } from '../objects.js'
+import type { AgentRelationType, ConversationParticipant } from '../objects.js'
 import type { NetworkState } from '../reducers/network-state.js'
 import type {
   ActivityEntry,
@@ -195,6 +195,13 @@ function formatAmount(micros: number, currency: string): string {
 export function summarizeEvent(event: AnyIFlowEvent): string {
   if (!isKnownEventType(event.type)) return event.type
 
+  if (isEventOfType(event, 'principal.declared')) return `Principal ${event.payload.principalId} declared`
+  if (isEventOfType(event, 'authority.rotated')) {
+    return `Principal authority rotated to version ${event.payload.authorityVersion}`
+  }
+  if (isEventOfType(event, 'authority.revoked')) {
+    return `Principal authority version ${event.payload.authorityVersion} revoked`
+  }
   if (isEventOfType(event, 'agent.registered')) return `Agent ${event.payload.label} registered on ${event.payload.nodeId}`
   if (isEventOfType(event, 'agent.presence_changed')) {
     const parts = [
@@ -242,7 +249,7 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
     return `Settled ${formatAmount(event.payload.amountMicros, event.payload.currency)} (${event.payload.visibility})`
   }
   if (isEventOfType(event, 'conversation.opened')) {
-    const who = event.payload.participants.map((p) => p.agentId).join(' ↔ ')
+    const who = event.payload.participants.map((p: ConversationParticipant) => p.agentId).join(' ↔ ')
     const boundary = event.payload.crossesOwnershipBoundary ? ' (crosses ownership boundary)' : ''
     return `Conversation opened: ${who}${boundary}`
   }
@@ -269,6 +276,9 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
   }
   if (isEventOfType(event, 'workspace.bound')) {
     return `Agent ${event.payload.agentId} bound to ${event.payload.runtime} on ${event.payload.nodeId}`
+  }
+  if (isEventOfType(event, 'publication.created')) {
+    return `Agent ${event.payload.publishedByAgentId} published proof ${event.payload.publicationId}`
   }
   return event.type
 }
