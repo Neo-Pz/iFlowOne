@@ -46,12 +46,40 @@ export const INITIAL_AGENT_STATE: AgentState = {
  * has claimed it — but nothing it agrees to can bind a human.
  */
 export interface PrincipalRef {
-  /** The Principal's did:key. The signature on any human authorization. */
-  did: string
+  /** Stable person/organization identity. It does not change with a key rotation. */
+  principalId: string
+  /** The current authority key that signed this binding. */
+  authorityDid: string
+  /** Monotonic authority generation. A verifier refuses rollback. */
+  authorityVersion: number
   /** The grant binding this Agent to that Principal, by its content hash. */
   grantRef: string
   /** Display name, when the Principal chose to publish one. */
   label?: string
+}
+
+/** A future recovery protocol is referenced, not implemented, by P0. */
+export interface RecoveryPolicyRef {
+  policyId: string
+  version: number
+  digest: string
+}
+
+/** Stable identity with a rotatable authority key. */
+export interface PrincipalDocument {
+  principalId: string
+  authorityDid: string
+  authorityVersion: number
+  recoveryPolicy?: RecoveryPolicyRef
+}
+
+/** Why a Principal may select an Agent in the private From picker. */
+export interface FromAgentGrant {
+  principalId: string
+  agentId: string
+  right: 'send_as'
+  scope?: string[]
+  expiresAt?: string
 }
 
 /** Who is acting. */

@@ -23,7 +23,7 @@ import type {
   SettlementVisibility,
   TrustEvidence,
 } from 'iflow-domain'
-import type { IFlowIssuer } from 'iflow-protocol'
+import type { IFlowIssuer, IFlowVisibility } from 'iflow-protocol'
 
 import type { OriginJournal } from './origin-journal.js'
 import type { IdPort, LoggerPort, RuntimeDescriptor } from './ports.js'
@@ -36,6 +36,9 @@ export interface ObserverContext {
   roomId?: string
   occurredAt?: string
   issuer?: IFlowIssuer
+  principalId?: string
+  /** Defaults to local. Set public only for an intentional publication. */
+  visibility?: IFlowVisibility
 }
 
 export class RuntimeObserver {
@@ -751,6 +754,8 @@ function spread(context: ObserverContext | undefined): Record<string, unknown> {
     goalId: context.goalId,
     roomId: context.roomId,
     occurredAt: context.occurredAt,
+    principalId: context.principalId,
+    visibility: context.visibility,
   }
 }
 
@@ -762,5 +767,7 @@ function spreadWithoutCorrelation(context: ObserverContext | undefined): Record<
     goalId: context.goalId,
     roomId: context.roomId,
     occurredAt: context.occurredAt,
+    principalId: context.principalId,
+    visibility: context.visibility,
   }
 }

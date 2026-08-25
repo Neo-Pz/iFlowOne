@@ -12,8 +12,27 @@ export const IFLOW_EVENT_SCHEMA = {
   $id: 'https://iflowone.cn/schema/iflow-event.json',
   title: 'IFlowEvent',
   type: 'object',
-  required: ['id', 'schemaVersion', 'origin', 'occurredAt', 'correlationId', 'type', 'issuer', 'subject', 'payload'],
+  required: [
+    'id',
+    'schemaVersion',
+    'origin',
+    'occurredAt',
+    'correlationId',
+    'type',
+    'issuer',
+    'subject',
+    'payload',
+  ],
   additionalProperties: false,
+  allOf: [
+    {
+      if: {
+        required: ['schemaVersion'],
+        properties: { schemaVersion: { minimum: 2 } },
+      },
+      then: { required: ['visibility'] },
+    },
+  ],
   properties: {
     id: { type: 'string', minLength: 1 },
     schemaVersion: { type: 'integer', minimum: 1 },
@@ -32,6 +51,8 @@ export const IFLOW_EVENT_SCHEMA = {
     observedAt: { type: 'string', format: 'date-time' },
     correlationId: { type: 'string', minLength: 1 },
     causationId: { type: 'string', minLength: 1 },
+    principalId: { type: 'string', minLength: 1 },
+    visibility: { enum: ['local', 'public'] },
     type: { type: 'string', minLength: 1 },
     issuer: {
       type: 'object',
@@ -48,13 +69,14 @@ export const IFLOW_EVENT_SCHEMA = {
       required: ['kind', 'id'],
       additionalProperties: false,
       properties: {
-        kind: { enum: ['agent', 'goal', 'task', 'room', 'artifact'] },
+        kind: { enum: ['agent', 'goal', 'task', 'room', 'artifact', 'conversation', 'principal', 'publication'] },
         id: { type: 'string', minLength: 1 },
       },
     },
     goalId: { type: 'string', minLength: 1 },
     taskId: { type: 'string', minLength: 1 },
     roomId: { type: 'string', minLength: 1 },
+    conversationId: { type: 'string', minLength: 1 },
     trace: {
       type: 'object',
       additionalProperties: false,
@@ -74,6 +96,127 @@ export const IFLOW_EVENT_SCHEMA = {
         signature: { type: 'string' },
       },
     },
+  },
+} as const
+
+const PRIVATE_ROUTING_STRING = { type: 'string', minLength: 1 } as const
+
+export const ENCRYPTED_INTENT_SCHEMA = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'https://iflowone.cn/schema/encrypted-intent.json',
+  title: 'EncryptedIntentEnvelope',
+  type: 'object',
+  required: ['version', 'kind', 'routing', 'sealed'],
+  additionalProperties: false,
+  properties: {
+    version: { const: 1 },
+    kind: { const: 'human.intent' },
+    routing: {
+      type: 'object',
+      required: [
+        'intentId',
+        'principalId',
+        'toAgentDid',
+        'browserSessionId',
+        'viewPublicKey',
+        'issuedAt',
+        'expiresAt',
+      ],
+      additionalProperties: false,
+      properties: {
+        intentId: PRIVATE_ROUTING_STRING,
+        principalId: PRIVATE_ROUTING_STRING,
+        toAgentDid: PRIVATE_ROUTING_STRING,
+        conversationId: PRIVATE_ROUTING_STRING,
+        browserSessionId: PRIVATE_ROUTING_STRING,
+        viewPublicKey: PRIVATE_ROUTING_STRING,
+        issuedAt: { type: 'string', format: 'date-time' },
+        expiresAt: { type: 'string', format: 'date-time' },
+      },
+    },
+    sealed: PRIVATE_ROUTING_STRING,
+  },
+} as const
+
+export const CONVERSATION_MESSAGE_SCHEMA = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'https://iflowone.cn/schema/conversation-message.json',
+  title: 'ConversationMessageEnvelope',
+  type: 'object',
+  required: ['version', 'kind', 'message', 'signature'],
+  additionalProperties: false,
+  properties: {
+    version: { const: 1 },
+    kind: { const: 'agent.message' },
+    message: {
+      type: 'object',
+      required: [
+        'messageId',
+        'conversationId',
+        'fromAgentDid',
+        'toAgentDid',
+        'issuedAt',
+        'contentDigest',
+        'payload',
+      ],
+      additionalProperties: false,
+      properties: {
+        messageId: PRIVATE_ROUTING_STRING,
+        conversationId: PRIVATE_ROUTING_STRING,
+        fromAgentDid: PRIVATE_ROUTING_STRING,
+        toAgentDid: PRIVATE_ROUTING_STRING,
+        issuedAt: { type: 'string', format: 'date-time' },
+        expiresAt: { type: 'string', format: 'date-time' },
+        contentDigest: PRIVATE_ROUTING_STRING,
+        payload: {},
+      },
+    },
+    signature: {
+      type: 'object',
+      required: ['alg', 'signerDid', 'value'],
+      additionalProperties: false,
+      properties: {
+        alg: { const: 'EdDSA' },
+        signerDid: PRIVATE_ROUTING_STRING,
+        value: PRIVATE_ROUTING_STRING,
+      },
+    },
+  },
+} as const
+
+export const PRIVATE_BROWSER_VIEW_SCHEMA = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'https://iflowone.cn/schema/private-browser-view.json',
+  title: 'PrivateBrowserViewEnvelope',
+  type: 'object',
+  required: ['version', 'kind', 'routing', 'sealed'],
+  additionalProperties: false,
+  properties: {
+    version: { const: 1 },
+    kind: { const: 'browser.view' },
+    routing: {
+      type: 'object',
+      required: [
+        'deliveryId',
+        'intentId',
+        'principalId',
+        'browserSessionId',
+        'viewKeyId',
+        'issuedAt',
+        'expiresAt',
+      ],
+      additionalProperties: false,
+      properties: {
+        deliveryId: PRIVATE_ROUTING_STRING,
+        intentId: PRIVATE_ROUTING_STRING,
+        principalId: PRIVATE_ROUTING_STRING,
+        browserSessionId: PRIVATE_ROUTING_STRING,
+        viewKeyId: PRIVATE_ROUTING_STRING,
+        issuedAt: { type: 'string', format: 'date-time' },
+        expiresAt: { type: 'string', format: 'date-time' },
+      },
+    },
+    sealed: PRIVATE_ROUTING_STRING,
   },
 } as const
 

@@ -582,6 +582,18 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     return
   }
 
+  if (
+    isEventOfType(event, 'principal.declared') ||
+    isEventOfType(event, 'authority.rotated') ||
+    isEventOfType(event, 'authority.revoked') ||
+    isEventOfType(event, 'publication.created')
+  ) {
+    // P0 freezes these facts before adding a private Principal projection or
+    // a public publication index. The shared network state must not infer
+    // ownership from them in the meantime.
+    return
+  }
+
   // Exhaustiveness: a new EventType must be handled above or explicitly ignored.
   const unreachable: never = event
   void unreachable

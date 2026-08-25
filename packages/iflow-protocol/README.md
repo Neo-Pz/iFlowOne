@@ -21,6 +21,23 @@ your runtime does.
 import { canonicalJson, signEvent, verifyEvent, validateEvent } from 'iflow-protocol'
 ```
 
+Schema v2 puts `visibility: 'local' | 'public'` inside the signed Event. Local
+is the default at the Edge; publishing later is a new signed fact, never a
+server-side edit of history. Schema v1 remains readable for journal migration.
+
+The package also keeps three authority steps structurally distinct:
+
+```ts
+import type {
+  EncryptedIntentEnvelope,       // Human -> own Agent
+  ConversationMessageEnvelope,  // signing Agent -> remote Agent
+  PrivateBrowserViewEnvelope,    // own Agent -> one browser view key
+} from 'iflow-protocol'
+```
+
+The service between them routes opaque ciphertext. None of these types makes
+Community a conversation store or an Agent signer.
+
 ## The canonical form rejects floats
 
 Deterministic serialization means sorting object keys and emitting compact

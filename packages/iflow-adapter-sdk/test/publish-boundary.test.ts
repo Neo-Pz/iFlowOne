@@ -15,8 +15,8 @@ import type { AnyIFlowEvent } from 'iflow-domain'
 import { createEdge, isPublishable } from '../src/create-edge.js'
 import { createMemoryHost } from '../src/testing.js'
 
-function fact(type: string): AnyIFlowEvent {
-  return { type } as AnyIFlowEvent
+function fact(type: string, visibility: 'local' | 'public' = 'local'): AnyIFlowEvent {
+  return { type, visibility, schemaVersion: 2 } as AnyIFlowEvent
 }
 
 describe('isPublishable', () => {
@@ -37,11 +37,12 @@ describe('isPublishable', () => {
     expect(isPublishable(fact('workspace.bound'))).toBe(false)
   })
 
-  it('publishes relations — a network is made of them', () => {
-    expect(isPublishable(fact('relation.recorded'))).toBe(true)
+  it('publishes a relation only when the Agent explicitly made it public', () => {
+    expect(isPublishable(fact('relation.recorded', 'local'))).toBe(false)
+    expect(isPublishable(fact('relation.recorded', 'public'))).toBe(true)
   })
 
-  it('leaves every pre-existing fact publishable', () => {
+  it('requires every ordinary v2 fact to opt in to publication', () => {
     for (const type of [
       'agent.registered',
       'agent.presence_changed',
@@ -54,12 +55,43 @@ describe('isPublishable', () => {
       'quote.offered',
       'task.settled',
     ]) {
-      expect(isPublishable(fact(type))).toBe(true)
+      expect(isPublishable(fact(type))).toBe(false)
+      expect(isPublishable(fact(type, 'public'))).toBe(true)
     }
   })
 })
 
 describe('the outbox never sees a local-only fact', () => {
+  it('refuses a direct enqueue of a non-public fact', async () => {
+    const host = createMemoryHost()
+    const edge = await createEdge({ ports: host.ports, descriptor: host.descriptor })
+    const local = edge.journal.all()[0]
+
+    await expect(edge.outbox.enqueue(local!)).rejects.toThrow(/non-public event/)
+    expect(edge.outbox.pending()).toHaveLength(0)
+    edge.dispose()
+  })
+
+  it('does not let a custom predicate widen the structural boundary', async () => {
+    const host = createMemoryHost()
+    const edge = await createEdge({
+      ports: host.ports,
+      descriptor: host.descriptor,
+      publishable: () => true,
+    })
+
+    await edge.observer.conversationOpened({
+      conversationId: 'conv-forced',
+      initiatedBy: 'agent-a',
+      participants: [{ agentId: 'agent-a', role: 'initiator', joinedAt: '2026-01-01T00:00:00.000Z' }],
+      context: { visibility: 'public' },
+    })
+    await edge.observer.taskCreated({ taskId: 'task-local', title: 'Local' })
+
+    expect(edge.outbox.pending()).toHaveLength(0)
+    edge.dispose()
+  })
+
   it('journals a conversation and projects it, but queues nothing', async () => {
     const host = createMemoryHost()
     const edge = await createEdge({ ports: host.ports, descriptor: host.descriptor })
@@ -104,7 +136,11 @@ describe('the outbox never sees a local-only fact', () => {
       initiatedBy: 'agent-a',
       participants: [{ agentId: 'agent-a', role: 'initiator', joinedAt: '2026-01-01T00:00:00.000Z' }],
     })
-    await edge.observer.agentRegistered({ agentId: 'agent-a', label: 'A' })
+    await edge.observer.agentRegistered({
+      agentId: 'agent-a',
+      label: 'A',
+      context: { visibility: 'public' },
+    })
 
     const queuedTypes = edge.outbox
       .pending()

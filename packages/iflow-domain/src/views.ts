@@ -130,7 +130,7 @@ export interface ActivityEntry {
   correlationId: string
   actorId: string
   actorKind: 'agent' | 'human' | 'system'
-  subjectKind: 'agent' | 'goal' | 'task' | 'room' | 'artifact' | 'conversation'
+  subjectKind: 'agent' | 'goal' | 'task' | 'room' | 'artifact' | 'conversation' | 'principal' | 'publication'
   subjectId: string
   taskId?: string
   goalId?: string

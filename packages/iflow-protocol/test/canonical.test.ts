@@ -134,6 +134,7 @@ describe.skipIf(!hasBinary)('event signing against the real identity binary', ()
       origin: { nodeId: 'node-1', streamId: 'edge', seq: 1 },
       occurredAt: '2026-01-01T00:00:00.000Z',
       correlationId: 'corr-1',
+      visibility: 'local',
       type: 'task.created',
       issuer: { id: 'agent-1', kind: 'agent' },
       subject: { kind: 'task', id: 'task-1' },
@@ -160,6 +161,18 @@ describe.skipIf(!hasBinary)('event signing against the real identity binary', ()
     const tampered = {
       ...signed,
       event: { ...signed.event, payload: { title: 'something else' } },
+    }
+    expect(await verifyEvent(tampered, verifier)).toBe(false)
+  })
+
+  it('rejects an event whose visibility changed after signing', async () => {
+    const home = newHome()
+    const { signer, verifier } = iflowIdKeypair(home)
+
+    const signed = await signEvent(sampleEvent({ visibility: 'local' }), signer)
+    const tampered = {
+      ...signed,
+      event: { ...signed.event, visibility: 'public' as const },
     }
     expect(await verifyEvent(tampered, verifier)).toBe(false)
   })
@@ -215,6 +228,7 @@ describe.skipIf(!hasBinary)('countersigned agreements', () => {
       origin: { nodeId: 'node-1', streamId: 'edge', seq: 1 },
       occurredAt: '2026-01-01T00:00:00.000Z',
       correlationId: 'corr-1',
+      visibility: 'local',
       type: 'quote.offered',
       issuer: { id: 'agent-seller', kind: 'agent' },
       subject: { kind: 'task', id: 'task-1' },

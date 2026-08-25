@@ -21,6 +21,11 @@ edge.observer.taskStarted({ taskId, agentId })   // report what your runtime did
 edge.views.network()                             // read the projection
 ```
 
+Every new fact is `local` unless the caller explicitly sets
+`context: { visibility: 'public' }`. Only a signed public fact may enter the
+outbox. Conversation and Workspace facts remain structurally local even if a
+caller attempts to mark them public.
+
 Your adapter reports facts in its own vocabulary — "this subagent started",
 "this tool finished" — and never touches the journal format, the envelope, or
 the projection algebra.

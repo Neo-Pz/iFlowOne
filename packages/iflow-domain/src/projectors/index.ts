@@ -195,6 +195,13 @@ function formatAmount(micros: number, currency: string): string {
 export function summarizeEvent(event: AnyIFlowEvent): string {
   if (!isKnownEventType(event.type)) return event.type
 
+  if (isEventOfType(event, 'principal.declared')) return `Principal ${event.payload.principalId} declared`
+  if (isEventOfType(event, 'authority.rotated')) {
+    return `Principal authority rotated to version ${event.payload.authorityVersion}`
+  }
+  if (isEventOfType(event, 'authority.revoked')) {
+    return `Principal authority version ${event.payload.authorityVersion} revoked`
+  }
   if (isEventOfType(event, 'agent.registered')) return `Agent ${event.payload.label} registered on ${event.payload.nodeId}`
   if (isEventOfType(event, 'agent.presence_changed')) {
     const parts = [
@@ -269,6 +276,9 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
   }
   if (isEventOfType(event, 'workspace.bound')) {
     return `Agent ${event.payload.agentId} bound to ${event.payload.runtime} on ${event.payload.nodeId}`
+  }
+  if (isEventOfType(event, 'publication.created')) {
+    return `Agent ${event.payload.publishedByAgentId} published proof ${event.payload.publicationId}`
   }
   return event.type
 }

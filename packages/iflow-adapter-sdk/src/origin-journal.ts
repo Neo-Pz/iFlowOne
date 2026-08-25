@@ -10,7 +10,7 @@
  */
 
 import type { AnyIFlowEvent, EventPayloadMap, EventType } from 'iflow-domain'
-import type { IFlowEvent, IFlowIssuer, IFlowSubject, Signer } from 'iflow-protocol'
+import type { IFlowEvent, IFlowIssuer, IFlowSubject, IFlowVisibility, Signer } from 'iflow-protocol'
 import { EVENT_SCHEMA_VERSION, base64url, signableBytes, validateEvent } from 'iflow-protocol'
 
 import { edgePaths, type EdgePaths } from './paths.js'
@@ -28,6 +28,10 @@ export interface RecordEventInput<K extends EventType = EventType> {
   /** Groups one collaboration flow. Defaults to a fresh correlation. */
   correlationId?: string
   causationId?: string
+  /** Stable Principal accountable for the actor, when one has claimed it. */
+  principalId?: string
+  /** Defaults to local. Public upload must always be an explicit origin decision. */
+  visibility?: IFlowVisibility
   goalId?: string
   taskId?: string
   roomId?: string
@@ -222,6 +226,8 @@ export class OriginJournal {
       occurredAt,
       correlationId: input.correlationId ?? this.ports.ids.newId('corr'),
       causationId: input.causationId,
+      principalId: input.principalId,
+      visibility: input.visibility ?? 'local',
       type: input.type,
       issuer: input.issuer ?? {
         id: this.descriptor.selfAgentId,

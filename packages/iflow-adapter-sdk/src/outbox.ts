@@ -87,6 +87,9 @@ export class Outbox {
 
   /** Queue a fact for upload. Enqueuing the same event twice is a no-op. */
   async enqueue(event: AnyIFlowEvent): Promise<void> {
+    if (event.visibility !== 'public') {
+      throw new Error(`iflow: refusing to enqueue non-public event ${event.id}`)
+    }
     if (this.entries.has(event.id)) return
     const entry: OutboxEntry = {
       eventId: event.id,
