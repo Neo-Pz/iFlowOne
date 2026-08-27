@@ -13,8 +13,16 @@ export type {
 } from './envelope.js'
 
 export type {
+  ConversationContentOrigin,
+  ConversationDeliveryState,
+  ConversationIntent,
+  ConversationListItem,
+  ConversationMode,
+  ConversationPrivateView,
   ConversationMessage,
   ConversationMessageEnvelope,
+  ConversationUiState,
+  ConversationViewMessage,
   EncryptedIntentEnvelope,
   EncryptedIntentRouting,
   PrivateBrowserViewEnvelope,

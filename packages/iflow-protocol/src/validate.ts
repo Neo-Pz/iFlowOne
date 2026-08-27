@@ -202,7 +202,7 @@ export function validateEncryptedIntent(candidate: unknown): ValidationResult {
   checkPrivateRouting(
     check,
     envelope.routing,
-    ['intentId', 'principalId', 'toAgentDid', 'browserSessionId', 'viewPublicKey'],
+    ['intentId', 'principalId', 'toAgentId', 'toAgentAuthorityDid', 'browserSessionId', 'viewPublicKey'],
     ['issuedAt', 'expiresAt'],
   )
   check.string(envelope.sealed, 'sealed')
@@ -218,9 +218,20 @@ export function validateConversationMessageEnvelope(candidate: unknown): Validat
   if (envelope.kind !== 'agent.message') check.fail('kind', 'must be agent.message')
   if (check.object(envelope.message, 'message')) {
     const message = envelope.message as unknown as Record<string, unknown>
-    for (const key of ['messageId', 'conversationId', 'fromAgentDid', 'toAgentDid', 'contentDigest']) {
+    for (const key of [
+      'messageId',
+      'conversationId',
+      'fromAgentId',
+      'fromAgentAuthorityDid',
+      'fromLabel',
+      'toAgentId',
+      'toAgentAuthorityDid',
+      'contentDigest',
+    ]) {
       check.string(message[key], `message.${key}`)
     }
+    check.enum(message['contentOrigin'], 'message.contentOrigin', new Set(['human', 'agent']))
+    check.string(message['originIntentId'], 'message.originIntentId', { required: false })
     check.timestamp(message['issuedAt'], 'message.issuedAt')
     check.timestamp(message['expiresAt'], 'message.expiresAt', { required: false })
     if (!('payload' in message)) check.fail('message.payload', 'is required')

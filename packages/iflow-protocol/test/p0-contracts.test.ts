@@ -8,6 +8,7 @@ import {
   validateEvent,
   validatePrivateBrowserView,
 } from '../src/index.js'
+import type { ConversationPrivateView } from '../src/index.js'
 import { IFLOW_EVENT_SCHEMA } from '../src/json-schema.js'
 
 function event(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -54,6 +55,22 @@ describe('P0 event visibility', () => {
 })
 
 describe('private interaction envelopes', () => {
+  it('keeps the private Chat list metadata-only', () => {
+    const view: ConversationPrivateView = {
+      version: 1,
+      kind: 'conversation.list',
+      ownAgentId: 'agent-a',
+      conversations: [{
+        conversationId: 'conv-1',
+        peerAgentId: 'agent-b',
+        peerLabel: 'Agent B',
+        mode: 'direct',
+        state: 'active',
+        updatedAt: '2026-08-27T00:00:00.000Z',
+      }],
+    }
+    expect(JSON.stringify(view)).not.toContain('text')
+  })
   it('accepts a Human-to-own-Agent encrypted Intent', () => {
     const result = validateEncryptedIntent({
       version: PRIVATE_MESSAGE_ENVELOPE_VERSION,
@@ -61,7 +78,8 @@ describe('private interaction envelopes', () => {
       routing: {
         intentId: 'intent-1',
         principalId: 'iflow:principal:alice',
-        toAgentDid: 'did:key:zAgentA',
+        toAgentId: 'agent-a',
+        toAgentAuthorityDid: 'did:key:zAgentA',
         browserSessionId: 'session-1',
         viewPublicKey: 'view-key-1',
         issuedAt: '2026-01-01T00:00:00.000Z',
@@ -79,7 +97,8 @@ describe('private interaction envelopes', () => {
       routing: {
         intentId: 'intent-1',
         principalId: 'iflow:principal:alice',
-        toAgentDid: 'did:key:zAgentA',
+        toAgentId: 'agent-a',
+        toAgentAuthorityDid: 'did:key:zAgentA',
         browserSessionId: 'session-1',
         viewPublicKey: 'view-key-1',
         issuedAt: '2026-01-01T00:05:00.000Z',
@@ -101,8 +120,13 @@ describe('private interaction envelopes', () => {
       message: {
         messageId: 'msg-1',
         conversationId: 'conv-1',
-        fromAgentDid: 'did:key:zAgentA',
-        toAgentDid: 'did:key:zAgentB',
+        fromAgentId: 'agent-a',
+        fromAgentAuthorityDid: 'did:key:zAgentA',
+        fromLabel: 'Agent A',
+        toAgentId: 'agent-b',
+        toAgentAuthorityDid: 'did:key:zAgentB',
+        contentOrigin: 'human',
+        originIntentId: 'intent-1',
         issuedAt: '2026-01-01T00:00:00.000Z',
         contentDigest: 'sha256:deadbeef',
         payload: { parts: [] },
@@ -122,11 +146,32 @@ describe('private interaction envelopes', () => {
         principalId: 'iflow:principal:alice',
         browserSessionId: 'session-1',
         viewKeyId: 'view-key-1',
+        conversationId: 'conv-1',
+        ownAgentId: 'agent-a',
         issuedAt: '2026-01-01T00:00:00.000Z',
         expiresAt: '2026-01-01T00:05:00.000Z',
       },
       sealed: 'opaque-base64url',
     })
     expect(result).toEqual({ valid: true, issues: [] })
+  })
+
+  it('rejects a conversation message that conflates logical Agent identity with its authority key', () => {
+    const result = validateConversationMessageEnvelope({
+      version: 1,
+      kind: 'agent.message',
+      message: {
+        messageId: 'msg-1',
+        conversationId: 'conv-1',
+        fromAgentDid: 'did:key:zAgentA',
+        toAgentDid: 'did:key:zAgentB',
+        issuedAt: '2026-01-01T00:00:00.000Z',
+        contentDigest: 'sha256:deadbeef',
+        payload: {},
+      },
+      signature: { alg: 'EdDSA', signerDid: 'did:key:zAgentA', value: 'signature' },
+    })
+    expect(result.valid).toBe(false)
+    expect(result.issues).toContainEqual({ path: 'message.fromAgentId', message: 'is required' })
   })
 })
