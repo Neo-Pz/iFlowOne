@@ -1,6 +1,6 @@
 {
   "name": "iflow-protocol",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "iFlow transport contract: event/command envelopes, canonical serialization, signature ports, version negotiation.",
   "license": "Apache-2.0",

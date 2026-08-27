@@ -61,7 +61,8 @@ describe('private interaction envelopes', () => {
       routing: {
         intentId: 'intent-1',
         principalId: 'iflow:principal:alice',
-        toAgentDid: 'did:key:zAgentA',
+        toAgentId: 'agent-a',
+        toAgentAuthorityDid: 'did:key:zAgentA',
         browserSessionId: 'session-1',
         viewPublicKey: 'view-key-1',
         issuedAt: '2026-01-01T00:00:00.000Z',
@@ -79,7 +80,8 @@ describe('private interaction envelopes', () => {
       routing: {
         intentId: 'intent-1',
         principalId: 'iflow:principal:alice',
-        toAgentDid: 'did:key:zAgentA',
+        toAgentId: 'agent-a',
+        toAgentAuthorityDid: 'did:key:zAgentA',
         browserSessionId: 'session-1',
         viewPublicKey: 'view-key-1',
         issuedAt: '2026-01-01T00:05:00.000Z',
@@ -101,8 +103,13 @@ describe('private interaction envelopes', () => {
       message: {
         messageId: 'msg-1',
         conversationId: 'conv-1',
-        fromAgentDid: 'did:key:zAgentA',
-        toAgentDid: 'did:key:zAgentB',
+        fromAgentId: 'agent-a',
+        fromAgentAuthorityDid: 'did:key:zAgentA',
+        fromLabel: 'Agent A',
+        toAgentId: 'agent-b',
+        toAgentAuthorityDid: 'did:key:zAgentB',
+        contentOrigin: 'human',
+        originIntentId: 'intent-1',
         issuedAt: '2026-01-01T00:00:00.000Z',
         contentDigest: 'sha256:deadbeef',
         payload: { parts: [] },
@@ -122,11 +129,32 @@ describe('private interaction envelopes', () => {
         principalId: 'iflow:principal:alice',
         browserSessionId: 'session-1',
         viewKeyId: 'view-key-1',
+        conversationId: 'conv-1',
+        ownAgentId: 'agent-a',
         issuedAt: '2026-01-01T00:00:00.000Z',
         expiresAt: '2026-01-01T00:05:00.000Z',
       },
       sealed: 'opaque-base64url',
     })
     expect(result).toEqual({ valid: true, issues: [] })
+  })
+
+  it('rejects a conversation message that conflates logical Agent identity with its authority key', () => {
+    const result = validateConversationMessageEnvelope({
+      version: 1,
+      kind: 'agent.message',
+      message: {
+        messageId: 'msg-1',
+        conversationId: 'conv-1',
+        fromAgentDid: 'did:key:zAgentA',
+        toAgentDid: 'did:key:zAgentB',
+        issuedAt: '2026-01-01T00:00:00.000Z',
+        contentDigest: 'sha256:deadbeef',
+        payload: {},
+      },
+      signature: { alg: 'EdDSA', signerDid: 'did:key:zAgentA', value: 'signature' },
+    })
+    expect(result.valid).toBe(false)
+    expect(result.issues).toContainEqual({ path: 'message.fromAgentId', message: 'is required' })
   })
 })

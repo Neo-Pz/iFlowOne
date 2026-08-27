@@ -10,11 +10,107 @@ import type { IFlowSignature } from './envelope.js'
 
 export const PRIVATE_MESSAGE_ENVELOPE_VERSION = 1 as const
 
+export type ConversationMode = 'direct' | 'assisted'
+export type ConversationContentOrigin = 'human' | 'agent'
+
+/** Plaintext that exists only inside a Human -> own Agent sealed Intent. */
+export type ConversationIntent =
+  | {
+      version: 1
+      kind: 'conversation.send'
+      mode: ConversationMode
+      targetAgentId: string
+      targetAgentAuthorityDid: string
+      text: string
+      conversationId?: string
+    }
+  | {
+      version: 1
+      kind: 'conversation.sync'
+      ownAgentId: string
+      peerAgentId?: string
+      conversationId?: string
+      cursor?: string
+      limit?: number
+    }
+  | {
+      version: 1
+      kind: 'conversation.draft.decide'
+      conversationId: string
+      draftId: string
+      decision: 'confirm' | 'cancel'
+    }
+
+export interface ConversationViewMessage {
+  messageId: string
+  conversationId: string
+  authorAgentId?: string
+  authorLabel: string
+  contentOrigin: ConversationContentOrigin
+  role: 'human' | 'agent' | 'system'
+  text: string
+  createdAt: string
+  state?: ConversationUiState
+}
+
+/** Plaintext projection sealed to one browser view key. */
+export type ConversationPrivateView =
+  | { version: 1; kind: 'conversation.bound'; conversationId: string; peerAgentId: string }
+  | { version: 1; kind: 'conversation.message'; conversationId: string; message: ConversationViewMessage }
+  | {
+      version: 1
+      kind: 'conversation.snapshot'
+      conversationId: string
+      messages: ConversationViewMessage[]
+      previousCursor?: string
+      nextCursor?: string
+    }
+  | { version: 1; kind: 'conversation.draft'; conversationId: string; draftId: string; text: string }
+  | {
+      version: 1
+      kind: 'conversation.status'
+      conversationId: string
+      messageId?: string
+      state: ConversationUiState
+      code?: string
+    }
+
+export type ConversationDeliveryState =
+  | 'intent.sealed'
+  | 'intent.relay_queued'
+  | 'intent.node_claimed'
+  | 'intent.policy_accepted'
+  | 'message.draft_pending'
+  | 'message.signed'
+  | 'message.relay_queued'
+  | 'message.remote_delivered'
+  | 'conversation.pending_approval'
+  | 'conversation.accepted'
+  | 'message.processed'
+  | 'reply.signed'
+  | 'reply.delivered'
+  | 'policy.denied'
+  | 'delivery.failed'
+
+/** Small state vocabulary rendered by Web and DSH; protocol keeps the detailed state above. */
+export type ConversationUiState =
+  | 'waiting_for_own_agent'
+  | 'draft_pending'
+  | 'sending'
+  | 'delivered'
+  | 'waiting_for_peer_approval'
+  | 'accepted'
+  | 'cancelled'
+  | 'failed'
+
 /** Metadata bound as AEAD additional data when a browser seals an Intent. */
 export interface EncryptedIntentRouting {
   intentId: string
   principalId: string
-  toAgentDid: string
+  /** Stable logical Agent identity selected by the authenticated Principal. */
+  toAgentId: string
+  /** Current key authority used to seal the Intent; it may rotate without changing toAgentId. */
+  toAgentAuthorityDid: string
   conversationId?: string
   browserSessionId: string
   viewPublicKey: string
@@ -35,8 +131,13 @@ export interface EncryptedIntentEnvelope {
 export interface ConversationMessage {
   messageId: string
   conversationId: string
-  fromAgentDid: string
-  toAgentDid: string
+  fromAgentId: string
+  fromAgentAuthorityDid: string
+  fromLabel: string
+  toAgentId: string
+  toAgentAuthorityDid: string
+  contentOrigin: ConversationContentOrigin
+  originIntentId?: string
   issuedAt: string
   expiresAt?: string
   /** Digest only; plaintext travels inside the encrypted transport payload. */
@@ -59,6 +160,9 @@ export interface PrivateBrowserViewRouting {
   principalId: string
   browserSessionId: string
   viewKeyId: string
+  /** Present for conversation-specific views; keeps simultaneous tabs isolated. */
+  conversationId?: string
+  ownAgentId?: string
   issuedAt: string
   expiresAt: string
 }
