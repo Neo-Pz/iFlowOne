@@ -18,6 +18,7 @@ import type {
   Conversation,
   ConversationParticipant,
   Goal,
+  Publication,
   Quote,
   Room,
   Task,
@@ -49,6 +50,8 @@ export interface NetworkState {
   conversations: Record<string, Conversation>
   /** Agent-to-agent relationships, keyed by `source|target|type`. */
   relations: Record<string, AgentRelation>
+  /** Public discovery statements, keyed by publicationId. */
+  publications: Record<string, Publication>
   /** Bounded ring of recent events, newest last. */
   recent: AnyIFlowEvent[]
   /** True once the ring has dropped at least one event. */
@@ -74,6 +77,7 @@ export function emptyNetworkState(): NetworkState {
     quotes: {},
     conversations: {},
     relations: {},
+    publications: {},
     recent: [],
     recentTruncated: false,
     streamCursors: {},
@@ -582,11 +586,57 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     return
   }
 
+  if (isEventOfType(event, 'publication.created')) {
+    const payload = event.payload
+    // The issuer has to be the publicly named Agent. A transport should reject
+    // this before it reaches the Journal, but the reducer keeps a bad fact out
+    // of every read model if an untrusted importer bypassed that boundary.
+    if (event.issuer.kind !== 'agent' || event.issuer.id !== payload.publishedByAgentId) return
+    if (event.subject.kind !== 'publication' || event.subject.id !== payload.publicationId) return
+    // This is intentionally a narrow P1 language. Future scoped visibility is
+    // a separate contract, not a convenient way to leak private data through a
+    // public Discovery projection.
+    if (payload.visibility !== 'public') return
+    // A new publication id denotes a new signed fact. Reusing one must not let
+    // even its original issuer rewrite what observers already verified.
+    if (state.publications[payload.publicationId]) return
+
+    state.publications[payload.publicationId] = {
+      publicationId: payload.publicationId,
+      publishedByAgentId: payload.publishedByAgentId,
+      kind: payload.kind,
+      visibility: payload.visibility,
+      summary: payload.summary,
+      domains: [...payload.domains],
+      capabilities: [...(payload.capabilities ?? [])],
+      tags: [...(payload.tags ?? [])],
+      expectedResponses: [...(payload.expectedResponses ?? [])],
+      expiresAt: payload.expiresAt,
+      commitment: payload.commitment,
+      commitmentScheme: payload.commitmentScheme,
+      createdAt: at,
+    }
+    ensureAgent(state, payload.publishedByAgentId, at)
+    return
+  }
+
+  if (isEventOfType(event, 'publication.withdrawn')) {
+    const payload = event.payload
+    const publication = state.publications[payload.publicationId]
+    // Only the Agent that made the public statement may withdraw it. The old
+    // event remains in the Journal, while the active projection changes state.
+    if (!publication || event.issuer.kind !== 'agent' || event.issuer.id !== publication.publishedByAgentId) return
+    if (event.subject.kind !== 'publication' || event.subject.id !== payload.publicationId) return
+    if (payload.publishedByAgentId !== publication.publishedByAgentId) return
+    publication.withdrawnAt = at
+    publication.withdrawalReason = payload.reason
+    return
+  }
+
   if (
     isEventOfType(event, 'principal.declared') ||
     isEventOfType(event, 'authority.rotated') ||
-    isEventOfType(event, 'authority.revoked') ||
-    isEventOfType(event, 'publication.created')
+    isEventOfType(event, 'authority.revoked')
   ) {
     // P0 freezes these facts before adding a private Principal projection or
     // a public publication index. The shared network state must not infer
@@ -624,6 +674,13 @@ function cloneState(state: NetworkState): NetworkState {
       participants: c.participants.map((p) => ({ ...p })),
     })),
     relations: mapValues(state.relations, (r) => ({ ...r })),
+    publications: mapValues(state.publications, (p) => ({
+      ...p,
+      domains: [...p.domains],
+      capabilities: [...p.capabilities],
+      tags: [...p.tags],
+      expectedResponses: [...p.expectedResponses],
+    })),
     recent: [...state.recent],
     recentTruncated: state.recentTruncated,
     streamCursors: { ...state.streamCursors },

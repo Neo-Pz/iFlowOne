@@ -14,6 +14,9 @@ import type {
   ExecutionAttempt,
   Goal,
   IncomingRequest,
+  Publication,
+  PublicationKind,
+  PublicationState,
   Quote,
   Room,
   Settlement,
@@ -199,6 +202,32 @@ export interface TrustEvidenceView {
   evidence: Agent['trustEvidence']
 }
 
+/** A public, read-only entry in the Discovery feed. */
+export interface DiscoveryPublication {
+  publication: Publication
+  /** Derived at projection time from `builtAt`; it never edits the Journal. */
+  state: PublicationState
+}
+
+/**
+ * Discovery is a projection, not a source of permission. Any user action from
+ * this view must start an independent policy/authorization flow.
+ */
+export interface DiscoveryFeedView {
+  publications: DiscoveryPublication[]
+  /** The filter the projector applied, recorded to make results explainable. */
+  filter: DiscoveryFilter
+}
+
+export interface DiscoveryFilter {
+  kinds?: PublicationKind[]
+  domain?: string
+  capability?: string
+  tag?: string
+  /** Default `false`: expired and withdrawn facts remain historical, not active. */
+  includeInactive?: boolean
+}
+
 /** Everything a Hub can ask an edge for. Implementations live outside the domain. */
 export interface ProjectionSet {
   agents: ViewEnvelope<AgentStateView>
@@ -207,6 +236,7 @@ export interface ProjectionSet {
   tasks: ViewEnvelope<TaskGraphView>
   conversations: ViewEnvelope<ConversationListView>
   requests: ViewEnvelope<RequestsView>
+  discovery: ViewEnvelope<DiscoveryFeedView>
 }
 
 export type {
@@ -216,6 +246,9 @@ export type {
   ExecutionAttempt,
   Goal,
   IncomingRequest,
+  Publication,
+  PublicationKind,
+  PublicationState,
   Quote,
   Room,
   Settlement,

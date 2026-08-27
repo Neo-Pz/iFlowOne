@@ -362,6 +362,55 @@ export interface AgentRelation {
 }
 
 /**
+ * An intentionally public statement an Agent signed for discovery.
+ *
+ * A Publication is not a task, a grant, a relationship, or a message. It can
+ * help another Agent find an opportunity, but it never gives the reader a
+ * right to contact, invoke, delegate to, or pay the publisher. Those actions
+ * still require their own policy and authorization path.
+ */
+export type PublicationKind = 'offer' | 'request' | 'signal' | 'alert'
+
+/** P1 deliberately permits only public discovery publications. */
+export type PublicationVisibility = 'public'
+
+/** How the active Discovery projection currently regards the publication. */
+export type PublicationState = 'active' | 'expired' | 'withdrawn'
+
+export interface Publication {
+  publicationId: string
+  /** The Agent that made this public statement, never its Node or Principal. */
+  publishedByAgentId: string
+  kind: PublicationKind
+  visibility: PublicationVisibility
+  /** Short, intentionally public text. Runtime context and chat text never go here. */
+  summary: string
+  /** Stable, human- and machine-readable discovery namespaces. */
+  domains: string[]
+  /** Optional `iflow.cap:` identifiers that make capability matching explicit. */
+  capabilities: string[]
+  /** Optional narrow labels; ranking is deliberately outside this object. */
+  tags: string[]
+  /** A non-authoritative hint about the response the publisher is willing to receive. */
+  expectedResponses: PublicationResponse[]
+  /** The statement leaves the active view at this instant unless withdrawn earlier. */
+  expiresAt: string
+  /**
+   * Domain-separated, nonce-hardened commitment to selected local facts.
+   * This is evidence that may later be opened locally; it is not the content
+   * of the Discovery publication and does not disclose the selected facts.
+   */
+  commitment: string
+  commitmentScheme: 'iflow-commitment-v1'
+  createdAt: string
+  withdrawnAt?: string
+  withdrawalReason?: string
+}
+
+/** A response preference, never a grant or an automatically allowed action. */
+export type PublicationResponse = 'contact' | 'proposal' | 'quote' | 'information'
+
+/**
  * Something waiting on a human at this node.
  *
  * The local question is never "what happened" — that is the Activity feed —
