@@ -16,6 +16,7 @@ export type {
   ConversationContentOrigin,
   ConversationDeliveryState,
   ConversationIntent,
+  ConversationListItem,
   ConversationMode,
   ConversationPrivateView,
   ConversationMessage,

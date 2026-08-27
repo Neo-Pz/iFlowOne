@@ -8,6 +8,7 @@ import {
   validateEvent,
   validatePrivateBrowserView,
 } from '../src/index.js'
+import type { ConversationPrivateView } from '../src/index.js'
 import { IFLOW_EVENT_SCHEMA } from '../src/json-schema.js'
 
 function event(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -54,6 +55,22 @@ describe('P0 event visibility', () => {
 })
 
 describe('private interaction envelopes', () => {
+  it('keeps the private Chat list metadata-only', () => {
+    const view: ConversationPrivateView = {
+      version: 1,
+      kind: 'conversation.list',
+      ownAgentId: 'agent-a',
+      conversations: [{
+        conversationId: 'conv-1',
+        peerAgentId: 'agent-b',
+        peerLabel: 'Agent B',
+        mode: 'direct',
+        state: 'active',
+        updatedAt: '2026-08-27T00:00:00.000Z',
+      }],
+    }
+    expect(JSON.stringify(view)).not.toContain('text')
+  })
   it('accepts a Human-to-own-Agent encrypted Intent', () => {
     const result = validateEncryptedIntent({
       version: PRIVATE_MESSAGE_ENVELOPE_VERSION,

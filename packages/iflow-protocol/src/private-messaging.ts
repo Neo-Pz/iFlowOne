@@ -53,8 +53,25 @@ export interface ConversationViewMessage {
   state?: ConversationUiState
 }
 
+/** Private metadata only; message text remains in the local DSH Session. */
+export interface ConversationListItem {
+  conversationId: string
+  peerAgentId: string
+  peerLabel: string
+  mode: ConversationMode
+  state: string
+  updatedAt: string
+}
+
 /** Plaintext projection sealed to one browser view key. */
 export type ConversationPrivateView =
+  | {
+      version: 1
+      kind: 'conversation.list'
+      ownAgentId: string
+      conversations: ConversationListItem[]
+      nextCursor?: string
+    }
   | { version: 1; kind: 'conversation.bound'; conversationId: string; peerAgentId: string }
   | { version: 1; kind: 'conversation.message'; conversationId: string; message: ConversationViewMessage }
   | {
