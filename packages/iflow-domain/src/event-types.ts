@@ -71,6 +71,9 @@ export const EVENT_TYPES = [
   'conversation.closed',
   // Relationships as durable objects, so the network graph has a real source.
   'relation.recorded',
+  'grant.issued',
+  'grant.revoked',
+  'trust_evidence.recorded',
   // Which local runtime an Agent acts in. Never carries the path.
   'workspace.bound',
   // Publishing is a new signed act; it never mutates a local fact.
@@ -133,7 +136,7 @@ export interface EventPayloadMap {
     roomId?: string
   }
   'task.created': { title: string; parentTaskId?: string; dependsOn?: string[]; ownerAgentId?: string }
-  'task.delegated': { toAgentId: string; fromAgentId?: string; reason?: string }
+  'task.delegated': { toAgentId: string; fromAgentId?: string; reason?: string; grantRef?: string }
   'task.started': { agentId: string; attemptId: string }
   'task.waiting': { reason: string }
   'task.blocked': { reason: string; blockedOnTaskId?: string }
@@ -278,6 +281,36 @@ export interface EventPayloadMap {
   'conversation.accepted': { acceptedBy: string; decidedBy: AcceptanceDecider }
   'conversation.rejected': { rejectedBy: string; decidedBy: AcceptanceDecider; reason?: string }
   'conversation.closed': { reason?: string }
+  /**
+   * A grant was signed. Subject is the Agent it was issued to.
+   *
+   * This records that authority exists and on what terms. It does not carry
+   * the authority: the signed document is verified by `iflow-id`, and
+   * `grantRef` is the content hash to check it against.
+   */
+  'grant.issued': {
+    grantRef: string
+    issuerDid: string
+    subjectDid: string
+    scope: string[]
+    constraints?: string[]
+    level?: 'L0' | 'L1' | 'L2' | 'L3'
+    expiresAt: string
+  }
+  /** Authority ends going forward. Nothing already recorded changes. */
+  'grant.revoked': { grantRef: string; reason?: string }
+  /**
+   * Something happened that bears on whether an Agent can be believed.
+   *
+   * Evidence, deliberately not a score. A score is one weighting of the facts;
+   * making it a fact of its own would hand every reader that weighting with no
+   * way to disagree. Reputation is a projection over these.
+   */
+  'trust_evidence.recorded': {
+    subjectAgentId: string
+    kind: 'did_verified' | 'agent_card_signed' | 'grant_accepted' | 'peer_endorsement'
+    detail?: string
+  }
   'relation.recorded': {
     sourceAgentId: string
     targetAgentId: string

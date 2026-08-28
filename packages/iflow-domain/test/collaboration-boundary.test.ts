@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { AnyIFlowEvent } from '../src/event-types.js'
-import { TASK_TRANSITIONS } from '../src/objects.js'
+import { TASK_TRANSITIONS, grantStateAt } from '../src/objects.js'
 import { reduceEvents } from '../src/reducers/network-state.js'
 import { AUTHORITY_SHAPED, fieldsOf, keysDeep, prose, repoDoc, src } from './source.js'
 
@@ -45,12 +45,10 @@ const ENFORCED_ELSEWHERE: Record<string, string> = {
 
 /** Not yet checkable, each with the thing it waits on. Shrinks as P3 lands. */
 const PENDING: Record<string, string> = {
-  'P3-03': 'grant.issued — the journal records no grant, so scope and expiry cannot be asserted',
-  'P3-04': 'grant.issued — a Task has nothing to trace its authority to yet',
-  'P3-05': 'grant.revoked — revocation exists in iflow-id, not as a recorded fact',
+  'P3-04':
+    'the enforcing half. A Task can now cite the grant that authorized it, but "no protected action without a grant" is a policy decision on the machine that would run the action, not something a fold can refuse',
   'P3-06': 'the plugin re-checking policy on the accepting machine; not a domain fold',
   'P3-12': 'the whole chain; this is the graduation test and lands last',
-  'P3-R-B': 'grant.issued and grant.revoked',
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +249,127 @@ describe('P3-07, P3-08, P3-R-C — delivery is not acceptance', () => {
   })
 })
 
+describe('P3-03, P3-05, P3-R-B — a grant is recorded, never minted', () => {
+  const issued = (expiresAt = '2026-06-01T00:00:00.000Z') =>
+    event('grant.issued', { kind: 'agent', id: 'agent-b' }, {
+      grantRef: 'sha256:grant-1',
+      issuerDid: 'did:key:zPrincipal',
+      subjectDid: 'did:key:zAgentB',
+      scope: ['iflow.cap:task.run'],
+      constraints: ['budget <= 50 USD'],
+      level: 'L2',
+      expiresAt,
+    })
+
+  scenario('P3-03', 'a grant record names its issuer, subject, scope, expiry and limits', () => {
+    // Strong: all five are what a reader needs to check the signed document
+    // this record points at. Any one missing makes the reference unusable.
+    const record = reduceEvents([issued()]).grants['sha256:grant-1']!
+    expect(record.issuerDid).toBe('did:key:zPrincipal')
+    expect(record.subjectDid).toBe('did:key:zAgentB')
+    expect(record.scope).toEqual(['iflow.cap:task.run'])
+    expect(record.constraints).toEqual(['budget <= 50 USD'])
+    expect(record.expiresAt).toBe('2026-06-01T00:00:00.000Z')
+  })
+
+  scenario('P3-03', 'the domain declares no object that could be a grant itself', () => {
+    // Authority is issued by a signing key and verified by iflow-id. A `Grant`
+    // this package could construct would be a grant nobody signed.
+    expect(src('objects.ts')).not.toMatch(/export interface Grant(?!Record)/)
+    expect(fieldsOf('objects.ts', 'GrantRecord')).toContain('grantRef')
+  })
+
+  scenario('P3-05', 'revocation ends authority ahead, and edits nothing behind', () => {
+    // Strong: state is derived from an instant, so the same record answers
+    // differently for "then" and "now" without the journal being touched.
+    // The same two events, folded with and without the revocation, so the
+    // comparison is about what revoking changed and not about wall-clock.
+    const grant = issued()
+    const revocation = event('grant.revoked', { kind: 'agent', id: 'agent-b' }, {
+      grantRef: 'sha256:grant-1',
+      reason: 'contract ended',
+    })
+    const before = reduceEvents([grant]).grants['sha256:grant-1']!
+    const after = reduceEvents([grant, revocation]).grants['sha256:grant-1']!
+
+    expect(after.issuedAt, 'revocation rewrote when it was issued').toBe(before.issuedAt)
+    expect(after.scope, 'revocation emptied the terms').toEqual(before.scope)
+    expect(after.constraints).toEqual(before.constraints)
+    expect(after.revocationReason).toBe('contract ended')
+
+    // Same record, different answers, depending only on when you ask.
+    expect(grantStateAt(after, grant.occurredAt)).toBe('active')
+    expect(grantStateAt(after, '2026-05-01T00:00:00.000Z')).toBe('revoked')
+  })
+
+  scenario('P3-R-B', 'work authorized while a grant held stays verifiable after it does not', () => {
+    const state = reduceEvents([
+      issued(),
+      event('task.created', { kind: 'task', id: 'task-1' }, { title: 'analyse' }),
+      event('task.delegated', { kind: 'task', id: 'task-1' }, {
+        toAgentId: 'agent-b',
+        grantRef: 'sha256:grant-1',
+      }),
+      event('grant.revoked', { kind: 'agent', id: 'agent-b' }, { grantRef: 'sha256:grant-1' }),
+    ])
+
+    // The citation survives, so the claim can still be audited.
+    expect(state.tasks['task-1']?.authorizedBy).toBe('sha256:grant-1')
+    // And the grant is plainly no longer usable for anything new.
+    expect(grantStateAt(state.grants['sha256:grant-1']!, '2026-02-01T00:00:00.000Z')).toBe('revoked')
+  })
+
+  it('expires without anyone emitting anything', () => {
+    const record = reduceEvents([issued('2026-01-02T00:00:00.000Z')]).grants['sha256:grant-1']!
+    expect(record.revokedAt).toBeUndefined()
+    expect(grantStateAt(record, '2026-03-01T00:00:00.000Z')).toBe('expired')
+  })
+})
+
+describe('trust evidence accumulates as evidence', () => {
+  scenario('P3-09', 'recording evidence never produces a number', () => {
+    const state = reduceEvents([
+      event('trust_evidence.recorded', { kind: 'agent', id: 'agent-b' }, {
+        subjectAgentId: 'agent-b',
+        kind: 'grant_accepted',
+        detail: 'accepted a limited grant',
+      }),
+    ])
+    const evidence = state.agents['agent-b']?.trustEvidence ?? []
+    expect(evidence).toHaveLength(1)
+    expect(Object.keys(evidence[0]!).sort()).toEqual(['at', 'detail', 'kind'])
+  })
+})
+
+describe('a snapshot is not a window onto a later one', () => {
+  it('does not share deliveries between folded states', () => {
+    // Regression: `cloneState` spread the Task and copied the deliveries array
+    // by reference, so ruling on a delivery in one state silently ruled on it
+    // in every state derived from the same Task.
+    const submitted = event('delivery.submitted', { kind: 'task', id: 'task-1' }, {
+      deliveryId: 'del-1',
+      byAgentId: 'agent-b',
+      outputs: [],
+      evidence: [],
+    })
+    const before = reduceEvents([submitted])
+    const after = reduceEvents([
+      submitted,
+      event('delivery.accepted', { kind: 'task', id: 'task-1' }, {
+        deliveryId: 'del-1',
+        decidedBy: 'agent-a',
+        decidedByKind: 'agent',
+      }),
+    ])
+
+    expect(after.tasks['task-1']?.deliveries[0]?.acceptance?.outcome).toBe('accepted')
+    expect(
+      before.tasks['task-1']?.deliveries[0]?.acceptance,
+      'accepting in one state reached back into an earlier one',
+    ).toBeUndefined()
+  })
+})
+
 describe('the matrix and the guards cannot drift apart', () => {
   it('accounts for every scenario in docs/p3-acceptance.md', () => {
     const doc = repoDoc('docs/p3-acceptance.md')
@@ -283,6 +402,6 @@ describe('the matrix and the guards cannot drift apart', () => {
     expect(total, 'the matrix is 12 scenarios and 4 reverse acceptances').toBe(16)
     // Not a measure of progress — a place progress is visible. P3 is finished
     // when PENDING is empty.
-    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(6)
+    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(3)
   })
 })

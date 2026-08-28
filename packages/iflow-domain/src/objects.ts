@@ -192,6 +192,14 @@ export interface Task {
   outputs: TaskOutput[]
   /** Every hand-back, in order. A rejection is followed by another, not a rewrite. */
   deliveries: Delivery[]
+  /**
+   * The grant a delegation cited, if it cited one.
+   *
+   * A reference to check, not a permission. Whether the work may actually run
+   * is decided by policy on the machine that would run it; recording this only
+   * makes the claim auditable afterwards.
+   */
+  authorizedBy?: string
   /** What this work was priced at, once it settled. */
   settlement?: Settlement
   createdAt: string
@@ -406,6 +414,50 @@ export type AgentRelationType =
   | 'worked_with'
   | 'delegated_to'
   | 'transacted_with'
+
+/**
+ * A record that a grant exists — deliberately not the grant.
+ *
+ * Named `GrantRecord` rather than `Grant` because that is what it is. The
+ * authority lives in a document signed by the Principal's key and verified by
+ * `iflow-id grant verify`; what the journal keeps is the content hash and the
+ * terms, so a reader can say "this Task cited that grant" and go check it.
+ *
+ * A grant a projection could mint is a grant nobody signed, so this object is
+ * never sufficient to permit anything. Its state is derived at read time by
+ * `grantStateAt` and never written back: a revocation ends authority going
+ * forward and does not edit what was true before it.
+ */
+export interface GrantRecord {
+  /** Content hash of the signed grant, issued by iflow-id. */
+  grantRef: string
+  /** The Principal that signed it. */
+  issuerDid: string
+  /** The Agent it was issued to. */
+  subjectDid: string
+  scope: string[]
+  constraints: string[]
+  level?: 'L0' | 'L1' | 'L2' | 'L3'
+  issuedAt: string
+  expiresAt: string
+  revokedAt?: string
+  revocationReason?: string
+}
+
+export type GrantState = 'active' | 'expired' | 'revoked'
+
+/**
+ * How a grant stands at a given instant.
+ *
+ * Derived, never stored. Asking "was this grant valid then" must keep working
+ * after a revocation, because a Task authorized while it held remains
+ * verifiable — that is the difference between a journal and an opinion.
+ */
+export function grantStateAt(record: GrantRecord, at: string): GrantState {
+  if (record.revokedAt && record.revokedAt <= at) return 'revoked'
+  if (record.expiresAt <= at) return 'expired'
+  return 'active'
+}
 
 export interface AgentRelation {
   sourceAgentId: string

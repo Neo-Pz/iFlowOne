@@ -14,6 +14,7 @@ import { isEventOfType, isKnownEventType } from '../event-types.js'
 import type {
   Agent,
   AgentRelation,
+  GrantRecord,
   Approval,
   Conversation,
   ConversationParticipant,
@@ -55,6 +56,8 @@ export interface NetworkState {
   conversations: Record<string, Conversation>
   /** Agent-to-agent relationships, keyed by `source|target|type`. */
   relations: Record<string, AgentRelation>
+  /** Records that grants exist, never the authority itself. */
+  grants: Record<string, GrantRecord>
   /** Public discovery statements, keyed by publicationId. */
   publications: Record<string, Publication>
   /** Bounded ring of recent events, newest last. */
@@ -82,6 +85,7 @@ export function emptyNetworkState(): NetworkState {
     quotes: {},
     conversations: {},
     relations: {},
+    grants: {},
     publications: {},
     recent: [],
     recentTruncated: false,
@@ -270,8 +274,10 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
   }
 
   if (isEventOfType(event, 'task.delegated')) {
+    // A citation to audit later, not a permission granted here.
     const task = ensureTask(state, event.subject.id, at)
     task.ownerAgentId = event.payload.toAgentId
+    if (event.payload.grantRef) task.authorizedBy = event.payload.grantRef
     ensureAgent(state, event.payload.toAgentId, at)
     moveTask(state, task, 'delegated', event)
     return
@@ -652,6 +658,42 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     return
   }
 
+  if (isEventOfType(event, 'grant.issued')) {
+    const { grantRef, issuerDid, subjectDid, scope, constraints, level, expiresAt } = event.payload
+    // First writing wins. A second `grant.issued` for the same ref would be a
+    // different document claiming the same content hash, which cannot be true.
+    if (!state.grants[grantRef]) {
+      state.grants[grantRef] = {
+        grantRef,
+        issuerDid,
+        subjectDid,
+        scope: [...scope],
+        constraints: constraints ? [...constraints] : [],
+        level,
+        issuedAt: at,
+        expiresAt,
+      }
+    }
+    return
+  }
+
+  if (isEventOfType(event, 'grant.revoked')) {
+    const record = state.grants[event.payload.grantRef]
+    // Recorded, not erased. Everything authorized while it held stays exactly
+    // as it was; `grantStateAt` is what answers "does it still hold".
+    if (record && !record.revokedAt) {
+      record.revokedAt = at
+      record.revocationReason = event.payload.reason
+    }
+    return
+  }
+
+  if (isEventOfType(event, 'trust_evidence.recorded')) {
+    const agent = ensureAgent(state, event.payload.subjectAgentId, at)
+    agent.trustEvidence.push({ kind: event.payload.kind, at, detail: event.payload.detail })
+    return
+  }
+
   if (isEventOfType(event, 'relation.recorded')) {
     const { sourceAgentId, targetAgentId, type } = event.payload
     const key = relationKeyOf(sourceAgentId, targetAgentId, type)
@@ -765,6 +807,11 @@ function cloneState(state: NetworkState): NetworkState {
       dependsOn: [...t.dependsOn],
       attempts: t.attempts.map((a) => ({ ...a })),
       outputs: t.outputs.map((o) => ({ ...o })),
+      deliveries: t.deliveries.map((d) => ({
+        ...d,
+        outputs: d.outputs.map((o) => ({ ...o })),
+        acceptance: d.acceptance ? { ...d.acceptance } : undefined,
+      })),
     })),
     rooms: mapValues(state.rooms, (r) => ({ ...r, participantAgentIds: [...r.participantAgentIds] })),
     toolCalls: mapValues(state.toolCalls, (c) => ({ ...c })),
@@ -775,6 +822,7 @@ function cloneState(state: NetworkState): NetworkState {
       participants: c.participants.map((p) => ({ ...p })),
     })),
     relations: mapValues(state.relations, (r) => ({ ...r })),
+    grants: mapValues(state.grants, (g) => ({ ...g, scope: [...g.scope], constraints: [...g.constraints] })),
     publications: mapValues(state.publications, (p) => ({
       ...p,
       domains: [...p.domains],
