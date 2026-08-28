@@ -31,6 +31,19 @@ in the reference adapter's repository.
 Dependencies run one way: `protocol <- domain <- adapter-sdk`. Nothing here
 depends on a runtime, a deployment, or a network service.
 
+## Principles
+
+The constraints that do not change with a release — discovery never confers
+authority, relationship and trust and grant stay three separate things, a feed
+is a projection and never a domain object, and the Community may relay
+authority but may never originate it.
+
+**→ [Architecture principles](docs/principles.md)** — eight of them, each with
+the failure it prevents, and the test that enforces it where one can.
+
+Read this before adding a field to a public object. Most of the mistakes it
+describes compile, pass their feature tests, and are expensive to reverse.
+
 ## What is deliberately not here
 
 The Hub UI, the Web app, and the future Community service — global journal,
