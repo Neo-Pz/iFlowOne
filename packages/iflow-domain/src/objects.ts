@@ -193,6 +193,15 @@ export interface Task {
   /** Every hand-back, in order. A rejection is followed by another, not a rewrite. */
   deliveries: Delivery[]
   /**
+   * Whether this work was delegated to somebody else's Agent.
+   *
+   * The predicate iFlow exists for. Within one Principal, an Agent finishing
+   * its own work is the end of the matter. Across Principals it is a claim
+   * that someone else has to be able to reject, which is why a cross-boundary
+   * Task cannot reach `completed` without a ruling.
+   */
+  crossesOwnershipBoundary?: boolean
+  /**
    * The grant a delegation cited, if it cited one.
    *
    * A reference to check, not a permission. Whether the work may actually run
@@ -243,11 +252,19 @@ export interface Acceptance {
   at: string
   reason?: string
   /**
-   * Reconstructed from a pre-split `task.completed`, where finishing and
-   * accepting were one event and no decision was ever recorded. Kept visible
-   * rather than presented as a real ruling nobody actually made.
+   * Nobody but the executor ruled on this.
+   *
+   * Two things arrive this way and they are not the same: a pre-split
+   * `task.completed` from an older node, and an Agent legitimately finishing
+   * work for its own Principal, where asking a counterparty to accept would be
+   * bureaucracy with no counterparty in it. What both share is the thing worth
+   * recording — no second party ruled — so that is what the flag says, rather
+   * than a claim about which of the two it was.
+   *
+   * Work delegated across an ownership boundary may not end this way at all;
+   * the fold refuses it.
    */
-  legacy?: boolean
+  selfDeclared?: boolean
 }
 
 export interface TaskOutput {

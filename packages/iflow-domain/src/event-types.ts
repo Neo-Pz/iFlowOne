@@ -136,7 +136,18 @@ export interface EventPayloadMap {
     roomId?: string
   }
   'task.created': { title: string; parentTaskId?: string; dependsOn?: string[]; ownerAgentId?: string }
-  'task.delegated': { toAgentId: string; fromAgentId?: string; reason?: string; grantRef?: string }
+  'task.delegated': {
+    toAgentId: string
+    fromAgentId?: string
+    reason?: string
+    grantRef?: string
+    /**
+     * Whether the work is going to another Principal's Agent. Stated by the
+     * delegating side, which is the only one that knows; the fold uses it to
+     * decide whether the executor may end the Task on its own.
+     */
+    crossesOwnershipBoundary?: boolean
+  }
   'task.started': { agentId: string; attemptId: string }
   'task.waiting': { reason: string }
   'task.blocked': { reason: string; blockedOnTaskId?: string }

@@ -40,7 +40,7 @@ export interface StateAnomaly {
    * Why the fold refused it. Absent for a plain illegal transition, which is
    * all this type used to carry.
    */
-  reason?: 'self_acceptance' | 'unknown_delivery'
+  reason?: 'self_acceptance' | 'unknown_delivery' | 'unratified_completion'
 }
 
 export interface NetworkState {
@@ -278,6 +278,9 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     const task = ensureTask(state, event.subject.id, at)
     task.ownerAgentId = event.payload.toAgentId
     if (event.payload.grantRef) task.authorizedBy = event.payload.grantRef
+    if (event.payload.crossesOwnershipBoundary !== undefined) {
+      task.crossesOwnershipBoundary = event.payload.crossesOwnershipBoundary
+    }
     ensureAgent(state, event.payload.toAgentId, at)
     moveTask(state, task, 'delegated', event)
     return
@@ -320,13 +323,48 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
   }
 
   if (isEventOfType(event, 'task.completed')) {
-    // Pre-split fact: one event that both delivered the work and ended the
-    // Task. Folded as exactly that — a Delivery plus an acceptance flagged
-    // `legacy`, so history reads the way it always did while being honest that
-    // no separate ruling was ever signed. Reinterpreting it as delivery-only
-    // would strand every historical Task in `delivered` forever, which rewrites
-    // what people were already shown.
+    // One event that both delivers the work and ends the Task.
+    //
+    // Legitimate when there is nobody else to ask: an Agent finishing work for
+    // its own Principal, or a pre-split fact from an older node. Folded as what
+    // it is — a Delivery plus an acceptance nobody else made, marked
+    // `selfDeclared`. Reinterpreting it as delivery-only would strand every
+    // historical Task in `delivered` forever, rewriting what people were
+    // already shown.
     const task = ensureTask(state, event.subject.id, at)
+
+    if (task.crossesOwnershipBoundary) {
+      // Work delegated to another Principal's Agent. The executor saying it is
+      // finished is a Delivery and nothing more — the other side still has to
+      // rule, and letting this through would restore the exact conflation the
+      // split removed, only for the case where it matters most.
+      state.anomalies.push({
+        eventId: event.id,
+        taskId: task.id,
+        from: task.state,
+        to: 'completed',
+        reason: 'unratified_completion',
+      })
+      const delivered = (event.payload.outputs ?? []).map((output) => ({
+        kind: output.kind,
+        id: output.id,
+        summary: output.summary,
+        at,
+      }))
+      for (const output of delivered) task.outputs.push(output)
+      task.deliveries.push({
+        deliveryId: `self:${event.id}`,
+        taskId: task.id,
+        byAgentId: task.ownerAgentId ?? event.issuer.id,
+        outputs: delivered,
+        evidence: [],
+        summary: event.payload.summary,
+        submittedAt: at,
+      })
+      moveTask(state, task, 'delivered', event)
+      return
+    }
+
     task.blockingReason = undefined
     const outputs = (event.payload.outputs ?? []).map((output) => ({
       kind: output.kind,
@@ -348,7 +386,7 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
         decidedBy: event.issuer.id,
         decidedByKind: 'agent',
         at,
-        legacy: true,
+        selfDeclared: true,
       },
     })
     moveTask(state, task, 'delivered', event)

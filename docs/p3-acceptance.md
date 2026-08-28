@@ -51,7 +51,7 @@ prohibitions rather than as a diagram of the happy path.
 | **P3-01** | a stranger Agent opens a Conversation | it can be received, displayed and refused | the Conversation creating a Relationship or a Grant |
 | **P3-02** | two Agents establish a Relationship | a signed relation fact exists | the Relationship conferring invocation, payment or file access |
 | **P3-03** | a Grant is issued | issuer, subject, scope, expiry and constraints are all explicit | high trust producing a Grant on its own |
-| **P3-04** | an Agent issues a Task | the Task traces to the issuing Agent and to a valid authority | a protected action running with no Grant |
+| **P3-04** | an Agent issues a Task | the Task traces to the issuing Agent and to a valid authority | the executor ending a cross-boundary Task on its own say-so |
 | **P3-05** | a Grant expires or is revoked | subsequent actions stop using it immediately | any already-recorded fact being edited or deleted |
 | **P3-06** | a remote Agent accepts a Task | the local policy checks it again, on the remote machine | the Community accepting on the remote Agent's behalf |
 | **P3-07** | a Delivery is submitted | it binds to the Task, the executing Agent, and its evidence | the Delivery counting as acceptance |
@@ -60,6 +60,22 @@ prohibitions rather than as a diagram of the happy path.
 | **P3-10** | the Community forwards while offline | a sealed message is relayed | the Community signing, authorizing or executing for an offline Agent |
 | **P3-11** | discovery leads to contact | MatchEvidence may recommend someone to contact | matching or subscribing conferring a right to make contact |
 | **P3-12** | a full collaboration with no economics | Task → Delivery → Acceptance closes | P3 depending on payment, a wallet, or x402 to close at all |
+
+### Within one Principal, none of this applies
+
+The chain governs crossings of ownership boundaries, and only those. An Agent
+doing work for its own Principal has nobody to ask: it finishes, and that is the
+end of the matter. Demanding a separate Acceptance there would be bureaucracy
+with no counterparty in it.
+
+So `task.completed` remains correct for exactly that case, and `task.delegated`
+carries `crossesOwnershipBoundary` — stated by the delegating side, which is the
+only party that knows. When it is true, the fold takes the outputs, records a
+Delivery, and refuses the conclusion: the Task stops at `delivered` with an
+`unratified_completion` anomaly, whatever the executor called the event.
+
+Refusing the conclusion is not discarding the evidence. The work is kept,
+because the requester still has to see what was produced in order to rule on it.
 
 ### P3-12 is the graduation test
 
@@ -157,6 +173,16 @@ delivery.submitted
 delivery.accepted / delivery.rejected
 trust_evidence.recorded
 ```
+
+`task.delegated` carries `grantRef` and `crossesOwnershipBoundary`: the
+authority the delegation cites, and whether it leaves the Principal. Neither
+permits anything — the first is a reference to audit, the second is what makes
+the executor unable to finish the work alone.
+
+An acceptance that only the executor made is marked `selfDeclared`. Two
+different things arrive that way — a pre-split fact from an older node, and
+legitimate work inside one Principal — and the flag says the thing they share,
+that no second party ruled, rather than guessing which one it was.
 
 Two naming decisions carry weight.
 

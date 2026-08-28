@@ -45,8 +45,6 @@ const ENFORCED_ELSEWHERE: Record<string, string> = {
 
 /** Not yet checkable, each with the thing it waits on. Shrinks as P3 lands. */
 const PENDING: Record<string, string> = {
-  'P3-04':
-    'the enforcing half. A Task can now cite the grant that authorized it, but "no protected action without a grant" is a policy decision on the machine that would run the action, not something a fold can refuse',
   'P3-06': 'the plugin re-checking policy on the accepting machine; not a domain fold',
   'P3-12': 'the whole chain; this is the graduation test and lands last',
 }
@@ -206,7 +204,7 @@ describe('P3-07, P3-08, P3-R-C — delivery is not acceptance', () => {
     const task = accepted.tasks['task-1']!
     expect(task.state).toBe('completed')
     expect(task.deliveries[0]?.acceptance?.decidedBy).toBe('agent-a')
-    expect(task.deliveries[0]?.acceptance?.legacy).toBeUndefined()
+    expect(task.deliveries[0]?.acceptance?.selfDeclared).toBeUndefined()
     expect(accepted.anomalies).toEqual([])
 
     // The executor ruling on its own work: refused, and kept visible.
@@ -244,8 +242,51 @@ describe('P3-07, P3-08, P3-R-C — delivery is not acceptance', () => {
     ])
     const task = state.tasks['task-old']!
     expect(task.state).toBe('completed')
-    expect(task.deliveries[0]?.acceptance?.legacy, 'a legacy completion posed as a real ruling').toBe(true)
+    expect(task.deliveries[0]?.acceptance?.selfDeclared, 'a legacy completion posed as a real ruling').toBe(true)
     expect(state.anomalies, 'the legacy path tripped the state machine').toEqual([])
+  })
+})
+
+describe('P3-04 — work for someone else cannot be finished by the one doing it', () => {
+  const delegated = (crosses: boolean) => [
+    event('task.created', { kind: 'task', id: 'task-x' }, { title: 'analyse' }),
+    event('task.delegated', { kind: 'task', id: 'task-x' }, {
+      toAgentId: 'agent-b',
+      fromAgentId: 'agent-a',
+      grantRef: 'sha256:grant-1',
+      crossesOwnershipBoundary: crosses,
+    }),
+    event('task.completed', { kind: 'task', id: 'task-x' }, {
+      summary: 'all done',
+      outputs: [{ kind: 'artifact', id: 'art-2', summary: 'result' }],
+    }),
+  ]
+
+  scenario('P3-04', 'a cross-boundary task stops at delivered, however the executor reports it', () => {
+    // Strong, and the case that matters most: `task.completed` is the shape of
+    // event an older or careless runtime will keep sending. Across an ownership
+    // boundary the fold takes the work and refuses the conclusion.
+    const state = reduceEvents(delegated(true))
+    const task = state.tasks['task-x']!
+
+    expect(task.state, 'the executor completed work it was doing for someone else').toBe('delivered')
+    expect(task.deliveries).toHaveLength(1)
+    expect(task.deliveries[0]?.acceptance, 'it accepted on the requester’s behalf').toBeUndefined()
+    expect(state.anomalies[0]?.reason).toBe('unratified_completion')
+    // The work itself is kept. Refusing the conclusion is not discarding the
+    // evidence — the requester still needs to see what was produced.
+    expect(task.outputs).toHaveLength(1)
+    expect(task.authorizedBy).toBe('sha256:grant-1')
+  })
+
+  it('leaves work inside one Principal alone', () => {
+    // The counterweight. An Agent finishing its own Principal's work has nobody
+    // to ask, and demanding a ruling there would be bureaucracy with no
+    // counterparty in it.
+    const state = reduceEvents(delegated(false))
+    expect(state.tasks['task-x']?.state).toBe('completed')
+    expect(state.tasks['task-x']?.deliveries[0]?.acceptance?.selfDeclared).toBe(true)
+    expect(state.anomalies).toEqual([])
   })
 })
 
@@ -408,6 +449,6 @@ describe('the matrix and the guards cannot drift apart', () => {
     expect(total, 'the matrix is 12 scenarios and 4 reverse acceptances').toBe(16)
     // Not a measure of progress — a place progress is visible. P3 is finished
     // when PENDING is empty.
-    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(3)
+    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(2)
   })
 })
