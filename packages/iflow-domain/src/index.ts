@@ -28,6 +28,8 @@ export type {
   Settlement,
   SettlementVisibility,
   Task,
+  Delivery,
+  Acceptance,
   TaskOutput,
   TaskState,
   ToolCall,

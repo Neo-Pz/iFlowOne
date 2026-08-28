@@ -37,6 +37,9 @@ export const EVENT_TYPES = [
   'task.blocked',
   'task.awaiting_approval',
   'task.completed',
+  'delivery.submitted',
+  'delivery.accepted',
+  'delivery.rejected',
   'task.failed',
   'room.created',
   'room.participant_joined',
@@ -135,7 +138,46 @@ export interface EventPayloadMap {
   'task.waiting': { reason: string }
   'task.blocked': { reason: string; blockedOnTaskId?: string }
   'task.awaiting_approval': { approvalId: string; reason: string }
+  /**
+   * Legacy. Kept because older nodes still emit it, and folded as a Delivery
+   * that was accepted the moment it arrived — which is what it meant, though
+   * nobody signed that acceptance. New emitters use `delivery.submitted`.
+   */
   'task.completed': { summary?: string; outputs?: { kind: 'artifact' | 'message'; id: string; summary: string }[] }
+  /**
+   * The executor hands work back. Subject is the Task.
+   *
+   * This does not finish the Task. Whoever asked for the work rules on it in a
+   * separate fact, and until then the Task is `delivered`.
+   */
+  'delivery.submitted': {
+    deliveryId: string
+    byAgentId: string
+    outputs?: { kind: 'artifact' | 'message'; id: string; summary: string }[]
+    /** Digests or artifact ids a reader can check. Never the content itself. */
+    evidence?: string[]
+    summary?: string
+  }
+  /**
+   * The requesting side accepted. Subject is the Task.
+   *
+   * `decidedBy` must not be the Agent that submitted the Delivery: an executor
+   * accepting its own work is the whole failure this split exists to stop, and
+   * the reducer records it as an anomaly rather than completing the Task.
+   */
+  'delivery.accepted': {
+    deliveryId: string
+    decidedBy: string
+    decidedByKind: 'agent' | 'human'
+    reason?: string
+  }
+  /** The requesting side sent it back. The Task returns to `running`. */
+  'delivery.rejected': {
+    deliveryId: string
+    decidedBy: string
+    decidedByKind: 'agent' | 'human'
+    reason: string
+  }
   'task.failed': { reason: string }
   'room.created': { title: string; goalId?: string; rootTaskId?: string }
   'room.participant_joined': { agentId: string }

@@ -222,6 +222,12 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
   if (isEventOfType(event, 'task.blocked')) return `Task blocked: ${event.payload.reason}`
   if (isEventOfType(event, 'task.awaiting_approval')) return `Task awaiting approval: ${event.payload.reason}`
   if (isEventOfType(event, 'task.completed')) return `Task completed${event.payload.summary ? `: ${event.payload.summary}` : ''}`
+  // Worded so a reader cannot mistake handing work back for having it approved.
+  if (isEventOfType(event, 'delivery.submitted'))
+    return `Work delivered for review${event.payload.summary ? `: ${event.payload.summary}` : ''}`
+  if (isEventOfType(event, 'delivery.accepted')) return `Delivery accepted by ${event.payload.decidedBy}`
+  if (isEventOfType(event, 'delivery.rejected'))
+    return `Delivery sent back by ${event.payload.decidedBy}: ${event.payload.reason}`
   if (isEventOfType(event, 'task.failed')) return `Task failed: ${event.payload.reason}`
   if (isEventOfType(event, 'room.created')) return `Room created: ${event.payload.title}`
   if (isEventOfType(event, 'room.participant_joined')) return `${event.payload.agentId} joined the room`

@@ -35,6 +35,11 @@ export interface StateAnomaly {
   taskId: string
   from: TaskState
   to: TaskState
+  /**
+   * Why the fold refused it. Absent for a plain illegal transition, which is
+   * all this type used to carry.
+   */
+  reason?: 'self_acceptance' | 'unknown_delivery'
 }
 
 export interface NetworkState {
@@ -115,6 +120,7 @@ function ensureTask(state: NetworkState, id: string, at: string): Task {
     dependsOn: [],
     attempts: [],
     outputs: [],
+    deliveries: [],
     createdAt: at,
     updatedAt: at,
   }
@@ -308,12 +314,107 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
   }
 
   if (isEventOfType(event, 'task.completed')) {
+    // Pre-split fact: one event that both delivered the work and ended the
+    // Task. Folded as exactly that — a Delivery plus an acceptance flagged
+    // `legacy`, so history reads the way it always did while being honest that
+    // no separate ruling was ever signed. Reinterpreting it as delivery-only
+    // would strand every historical Task in `delivered` forever, which rewrites
+    // what people were already shown.
     const task = ensureTask(state, event.subject.id, at)
     task.blockingReason = undefined
-    for (const output of event.payload.outputs ?? []) {
-      task.outputs.push({ kind: output.kind, id: output.id, summary: output.summary, at })
-    }
+    const outputs = (event.payload.outputs ?? []).map((output) => ({
+      kind: output.kind,
+      id: output.id,
+      summary: output.summary,
+      at,
+    }))
+    for (const output of outputs) task.outputs.push(output)
+    task.deliveries.push({
+      deliveryId: `legacy:${event.id}`,
+      taskId: task.id,
+      byAgentId: task.ownerAgentId ?? event.issuer.id,
+      outputs,
+      evidence: [],
+      summary: event.payload.summary,
+      submittedAt: at,
+      acceptance: {
+        outcome: 'accepted',
+        decidedBy: event.issuer.id,
+        decidedByKind: 'agent',
+        at,
+        legacy: true,
+      },
+    })
+    moveTask(state, task, 'delivered', event)
     moveTask(state, task, 'completed', event)
+    return
+  }
+
+  if (isEventOfType(event, 'delivery.submitted')) {
+    const task = ensureTask(state, event.subject.id, at)
+    task.blockingReason = undefined
+    const outputs = (event.payload.outputs ?? []).map((output) => ({
+      kind: output.kind,
+      id: output.id,
+      summary: output.summary,
+      at,
+    }))
+    for (const output of outputs) task.outputs.push(output)
+    task.deliveries.push({
+      deliveryId: event.payload.deliveryId,
+      taskId: task.id,
+      byAgentId: event.payload.byAgentId,
+      outputs,
+      evidence: event.payload.evidence ?? [],
+      summary: event.payload.summary,
+      submittedAt: at,
+    })
+    ensureAgent(state, event.payload.byAgentId, at)
+    moveTask(state, task, 'delivered', event)
+    return
+  }
+
+  if (isEventOfType(event, 'delivery.accepted') || isEventOfType(event, 'delivery.rejected')) {
+    const accepted = isEventOfType(event, 'delivery.accepted')
+    const task = ensureTask(state, event.subject.id, at)
+    const delivery = task.deliveries.find((d) => d.deliveryId === event.payload.deliveryId)
+
+    if (!delivery) {
+      // A ruling on nothing. Recorded rather than applied: inventing the
+      // Delivery it refers to would let an acceptance conjure the very fact it
+      // claims to be judging.
+      state.anomalies.push({
+        eventId: event.id,
+        taskId: task.id,
+        from: task.state,
+        to: accepted ? 'completed' : 'running',
+        reason: 'unknown_delivery',
+      })
+      return
+    }
+
+    if (delivery.byAgentId === event.payload.decidedBy) {
+      // The executor ruling on its own work. This is the failure the split
+      // exists to prevent, so the Task stays delivered and the attempt is kept
+      // where a reader can see it.
+      state.anomalies.push({
+        eventId: event.id,
+        taskId: task.id,
+        from: task.state,
+        to: accepted ? 'completed' : 'running',
+        reason: 'self_acceptance',
+      })
+      return
+    }
+
+    delivery.acceptance = {
+      outcome: accepted ? 'accepted' : 'rejected',
+      decidedBy: event.payload.decidedBy,
+      decidedByKind: event.payload.decidedByKind,
+      at,
+      reason: event.payload.reason,
+    }
+    moveTask(state, task, accepted ? 'completed' : 'running', event)
     return
   }
 

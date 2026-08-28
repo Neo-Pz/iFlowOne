@@ -16,6 +16,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { AnyIFlowEvent } from '../src/event-types.js'
+import { TASK_TRANSITIONS } from '../src/objects.js'
 import { reduceEvents } from '../src/reducers/network-state.js'
 import { AUTHORITY_SHAPED, fieldsOf, keysDeep, prose, repoDoc, src } from './source.js'
 
@@ -48,11 +49,8 @@ const PENDING: Record<string, string> = {
   'P3-04': 'grant.issued — a Task has nothing to trace its authority to yet',
   'P3-05': 'grant.revoked — revocation exists in iflow-id, not as a recorded fact',
   'P3-06': 'the plugin re-checking policy on the accepting machine; not a domain fold',
-  'P3-07': 'delivery.submitted — today task.completed carries the outputs AND terminates the Task',
-  'P3-08': 'delivery.accepted — there is no acceptance fact to record separately',
   'P3-12': 'the whole chain; this is the graduation test and lands last',
   'P3-R-B': 'grant.issued and grant.revoked',
-  'P3-R-C': 'the delivery/acceptance split — this scenario is currently VIOLATED, see stage 3',
 }
 
 // ---------------------------------------------------------------------------
@@ -164,23 +162,92 @@ describe('P3-09 — a score is a projection, never a fact', () => {
   })
 })
 
-describe('P3-R-C — delivery is not acceptance', () => {
-  it('holds the current violation in place until it is actually fixed', () => {
-    // This asserts the WRONG behaviour on purpose. `task.completed` carries the
-    // outputs — it is a Delivery — and the reducer moves the Task straight to a
-    // terminal `completed`, so the executor declares its own work accepted.
-    //
-    // Landing the split makes this test fail, which is the point: the failure
-    // is the reminder to replace it with the real guard rather than let the
-    // scenario sit silently unenforced.
-    expect(
-      src('event-types.ts').includes('delivery.submitted'),
-      'delivery.submitted exists now — replace this with the real P3-R-C guard',
-    ).toBe(false)
-    expect(
-      src('objects.ts').includes("| 'delivered'"),
-      'TaskState gained `delivered` — replace this with the real P3-R-C guard',
-    ).toBe(false)
+describe('P3-07, P3-08, P3-R-C — delivery is not acceptance', () => {
+  const submitted = (byAgentId = 'agent-b') =>
+    event('delivery.submitted', { kind: 'task', id: 'task-1' }, {
+      deliveryId: 'del-1',
+      byAgentId,
+      outputs: [{ kind: 'artifact', id: 'art-1', summary: 'the report' }],
+      evidence: ['sha256:abc'],
+      summary: 'done',
+    })
+
+  const ruling = (type: string, decidedBy: string) =>
+    event(type, { kind: 'task', id: 'task-1' }, {
+      deliveryId: 'del-1',
+      decidedBy,
+      decidedByKind: 'agent',
+      reason: type === 'delivery.rejected' ? 'not what was asked for' : undefined,
+    })
+
+  scenario('P3-R-C', 'completed is unreachable except through a ruling', () => {
+    // The strongest form available: not "the reducer happens not to do it" but
+    // "the state machine has no edge". Every path to `completed` goes through
+    // `delivered`, and the only thing that leaves `delivered` for `completed`
+    // is an accepted Delivery.
+    const reachCompleted = Object.entries(TASK_TRANSITIONS)
+      .filter(([, to]) => to.includes('completed'))
+      .map(([from]) => from)
+    expect(reachCompleted, 'some state reaches completed without a delivery').toEqual(['delivered'])
+  })
+
+  scenario('P3-07', 'a delivery binds its task, its author and its evidence, and settles nothing', () => {
+    const state = reduceEvents([submitted()])
+    const task = state.tasks['task-1']!
+    const delivery = task.deliveries[0]!
+
+    expect(task.state, 'submitting a delivery finished the task').toBe('delivered')
+    expect(delivery.taskId).toBe('task-1')
+    expect(delivery.byAgentId).toBe('agent-b')
+    expect(delivery.evidence).toEqual(['sha256:abc'])
+    expect(delivery.acceptance, 'a delivery arrived already accepted').toBeUndefined()
+  })
+
+  scenario('P3-08', 'only the other side may rule, and the ruling is its own fact', () => {
+    const accepted = reduceEvents([submitted(), ruling('delivery.accepted', 'agent-a')])
+    const task = accepted.tasks['task-1']!
+    expect(task.state).toBe('completed')
+    expect(task.deliveries[0]?.acceptance?.decidedBy).toBe('agent-a')
+    expect(task.deliveries[0]?.acceptance?.legacy).toBeUndefined()
+    expect(accepted.anomalies).toEqual([])
+
+    // The executor ruling on its own work: refused, and kept visible.
+    const self = reduceEvents([submitted(), ruling('delivery.accepted', 'agent-b')])
+    expect(self.tasks['task-1']?.state, 'an agent accepted its own delivery').toBe('delivered')
+    expect(self.tasks['task-1']?.deliveries[0]?.acceptance).toBeUndefined()
+    expect(self.anomalies[0]?.reason).toBe('self_acceptance')
+
+    // A ruling on a delivery that does not exist must not conjure one.
+    const phantom = reduceEvents([ruling('delivery.accepted', 'agent-a')])
+    expect(phantom.tasks['task-1']?.deliveries).toEqual([])
+    expect(phantom.anomalies[0]?.reason).toBe('unknown_delivery')
+  })
+
+  it('sends rejected work back without erasing what happened', () => {
+    const state = reduceEvents([submitted(), ruling('delivery.rejected', 'agent-a')])
+    const task = state.tasks['task-1']!
+    expect(task.state).toBe('running')
+    // The delivery and its rejection both remain. History is appended to.
+    expect(task.deliveries).toHaveLength(1)
+    expect(task.deliveries[0]?.acceptance?.outcome).toBe('rejected')
+    expect(task.deliveries[0]?.acceptance?.reason).toBe('not what was asked for')
+  })
+
+  it('folds a pre-split task.completed honestly rather than silently', () => {
+    // Legacy nodes still emit it. Folding it as delivery-only would strand
+    // every historical Task in `delivered`; folding it as a real acceptance
+    // would invent a ruling nobody signed. It is folded as what it was, with
+    // the acceptance flagged.
+    const state = reduceEvents([
+      event('task.completed', { kind: 'task', id: 'task-old' }, {
+        summary: 'finished',
+        outputs: [{ kind: 'artifact', id: 'art-9', summary: 'output' }],
+      }),
+    ])
+    const task = state.tasks['task-old']!
+    expect(task.state).toBe('completed')
+    expect(task.deliveries[0]?.acceptance?.legacy, 'a legacy completion posed as a real ruling').toBe(true)
+    expect(state.anomalies, 'the legacy path tripped the state machine').toEqual([])
   })
 })
 
@@ -216,6 +283,6 @@ describe('the matrix and the guards cannot drift apart', () => {
     expect(total, 'the matrix is 12 scenarios and 4 reverse acceptances').toBe(16)
     // Not a measure of progress — a place progress is visible. P3 is finished
     // when PENDING is empty.
-    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(9)
+    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(6)
   })
 })

@@ -130,6 +130,15 @@ export type TaskState =
   | 'waiting'
   | 'blocked'
   | 'awaiting_approval'
+  /**
+   * Work was handed back and nobody has ruled on it yet.
+   *
+   * This state exists so that finishing and being accepted are two events with
+   * two authors. Before it, the executor emitted one fact that both delivered
+   * the work and terminated the Task, which meant an Agent could accept its
+   * own output and the requester had no place to disagree.
+   */
+  | 'delivered'
   | 'completed'
   | 'failed'
 
@@ -139,12 +148,14 @@ export type TaskState =
  * behavior cannot rewrite collaborative semantics.
  */
 export const TASK_TRANSITIONS: Readonly<Record<TaskState, readonly TaskState[]>> = Object.freeze({
-  created: ['delegated', 'running', 'waiting', 'blocked', 'failed', 'completed'],
-  delegated: ['running', 'waiting', 'blocked', 'awaiting_approval', 'failed', 'completed'],
-  running: ['waiting', 'blocked', 'awaiting_approval', 'completed', 'failed'],
-  waiting: ['running', 'blocked', 'awaiting_approval', 'completed', 'failed'],
-  blocked: ['running', 'waiting', 'awaiting_approval', 'completed', 'failed'],
-  awaiting_approval: ['running', 'waiting', 'blocked', 'completed', 'failed'],
+  created: ['delegated', 'running', 'waiting', 'blocked', 'delivered', 'failed'],
+  delegated: ['running', 'waiting', 'blocked', 'awaiting_approval', 'delivered', 'failed'],
+  running: ['waiting', 'blocked', 'awaiting_approval', 'delivered', 'failed'],
+  waiting: ['running', 'blocked', 'awaiting_approval', 'delivered', 'failed'],
+  blocked: ['running', 'waiting', 'awaiting_approval', 'delivered', 'failed'],
+  awaiting_approval: ['running', 'waiting', 'blocked', 'delivered', 'failed'],
+  // A rejected Delivery sends the work back rather than ending it.
+  delivered: ['completed', 'running', 'failed'],
   completed: [],
   failed: ['running'],
 })
@@ -179,10 +190,56 @@ export interface Task {
   attempts: ExecutionAttempt[]
   blockingReason?: string
   outputs: TaskOutput[]
+  /** Every hand-back, in order. A rejection is followed by another, not a rewrite. */
+  deliveries: Delivery[]
   /** What this work was priced at, once it settled. */
   settlement?: Settlement
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * Work handed back for a Task.
+ *
+ * A Delivery binds three things a reader needs in order to hold anyone to it:
+ * the Task, the Agent that executed it, and the evidence. It is deliberately
+ * not a conclusion — submitting one says the executor is finished, and says
+ * nothing at all about whether the work was any good.
+ */
+export interface Delivery {
+  deliveryId: string
+  taskId: string
+  /** Who did the work, and therefore who may not rule on it. */
+  byAgentId: string
+  outputs: TaskOutput[]
+  /** References a reader can check — digests, artifact ids. Never the content. */
+  evidence: string[]
+  summary?: string
+  submittedAt: string
+  /** Absent until somebody rules. Absence is not tacit approval. */
+  acceptance?: Acceptance
+}
+
+/**
+ * Somebody ruled on a Delivery.
+ *
+ * A separate fact with a separate author, because the alternative is that
+ * finishing work is the same act as approving it. Only the party that asked
+ * for the work may sign this; a fold that sees the executor accept its own
+ * Delivery records an anomaly and leaves the Task delivered.
+ */
+export interface Acceptance {
+  outcome: 'accepted' | 'rejected'
+  decidedBy: string
+  decidedByKind: 'agent' | 'human'
+  at: string
+  reason?: string
+  /**
+   * Reconstructed from a pre-split `task.completed`, where finishing and
+   * accepting were one event and no decision was ever recorded. Kept visible
+   * rather than presented as a real ruling nobody actually made.
+   */
+  legacy?: boolean
 }
 
 export interface TaskOutput {
