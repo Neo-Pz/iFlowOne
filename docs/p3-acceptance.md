@@ -119,10 +119,15 @@ resulting state:  delivered
 forbidden state:  completed, accepted, or anything reputation counts as success
 ```
 
-**This is currently violated.** `task.completed` carries the outputs — it is a
-Delivery — and the reducer moves the Task straight to a terminal `completed`.
-The executor declares its own work finished and the requester has no say. The
-contract change that separates the two is what makes this scenario testable.
+This was violated until the delivery/acceptance split: `task.completed` carried
+the outputs, and the reducer moved the Task straight to a terminal `completed`,
+so the executor declared its own work finished and the requester had no say.
+
+It is now guaranteed by the state machine rather than by the reducer's manners.
+`completed` was removed from every transition list except `delivered`'s, so
+there is no path from work being done to work being finished that does not pass
+through somebody ruling on it — and an Agent ruling on its own Delivery is
+recorded as a `self_acceptance` anomaly with the Task left `delivered`.
 
 ### P3-R-D · High trust without authority
 
@@ -170,7 +175,14 @@ are projections.
 authority.** The journal keeps the `grantRef` — a content hash — with the
 issuer, subject, scope, expiry and constraints. Verification stays with
 `iflow-id grant verify`, because authority is issued by a signing key and never
-by a projection. A grant a projection could mint is a grant nobody signed.
+by a projection. A grant a projection could mint is a grant nobody signed, so
+the recorded object is `GrantRecord` and no `Grant` type is exported at all.
+
+Revocation follows from the same rule. `grant.revoked` writes a timestamp and
+nothing else; `grantStateAt(record, at)` derives active / expired / revoked from
+the instant you ask about. The record therefore answers differently for "then"
+and "now" without the journal being edited, which is what keeps work authorized
+while a grant held verifiable after it lapses.
 
 ---
 

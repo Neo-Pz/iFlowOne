@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AnyIFlowEvent } from '../src/event-types.js'
 import { TASK_TRANSITIONS, grantStateAt } from '../src/objects.js'
-import { reduceEvents } from '../src/reducers/network-state.js'
+import { applyEvent, emptyNetworkState, reduceEvents } from '../src/reducers/network-state.js'
 import { AUTHORITY_SHAPED, fieldsOf, keysDeep, prose, repoDoc, src } from './source.js'
 
 // ---------------------------------------------------------------------------
@@ -342,31 +342,37 @@ describe('trust evidence accumulates as evidence', () => {
 })
 
 describe('a snapshot is not a window onto a later one', () => {
-  it('does not share deliveries between folded states', () => {
-    // Regression: `cloneState` spread the Task and copied the deliveries array
-    // by reference, so ruling on a delivery in one state silently ruled on it
-    // in every state derived from the same Task.
+  it('does not let a later ruling reach back into a state already handed out', () => {
+    // Regression. `applyEvent` clones the previous state and returns a new one,
+    // so callers hold onto earlier snapshots — the Community's fold cache is
+    // exactly that. `cloneState` spread the Task but copied `deliveries` by
+    // reference, so accepting a Delivery mutated the object the earlier
+    // snapshot was still pointing at.
+    //
+    // Two independent `reduceEvents` calls do NOT exercise this: each starts
+    // from an empty state and shares nothing. The bug only appears when one
+    // fold continues from another, which is what this does.
     const submitted = event('delivery.submitted', { kind: 'task', id: 'task-1' }, {
       deliveryId: 'del-1',
       byAgentId: 'agent-b',
       outputs: [],
       evidence: [],
     })
-    const before = reduceEvents([submitted])
-    const after = reduceEvents([
-      submitted,
-      event('delivery.accepted', { kind: 'task', id: 'task-1' }, {
-        deliveryId: 'del-1',
-        decidedBy: 'agent-a',
-        decidedByKind: 'agent',
-      }),
-    ])
+    const accepted = event('delivery.accepted', { kind: 'task', id: 'task-1' }, {
+      deliveryId: 'del-1',
+      decidedBy: 'agent-a',
+      decidedByKind: 'agent',
+    })
 
-    expect(after.tasks['task-1']?.deliveries[0]?.acceptance?.outcome).toBe('accepted')
+    const afterDelivery = applyEvent(emptyNetworkState(), submitted)
+    const afterRuling = applyEvent(afterDelivery, accepted)
+
+    expect(afterRuling.tasks['task-1']?.deliveries[0]?.acceptance?.outcome).toBe('accepted')
     expect(
-      before.tasks['task-1']?.deliveries[0]?.acceptance,
-      'accepting in one state reached back into an earlier one',
+      afterDelivery.tasks['task-1']?.deliveries[0]?.acceptance,
+      'accepting reached back into a snapshot that was taken before it',
     ).toBeUndefined()
+    expect(afterDelivery.tasks['task-1']?.state).toBe('delivered')
   })
 })
 
