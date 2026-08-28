@@ -66,6 +66,21 @@ dependency, participation, ownership, delivery, approval. A graph that grows an
 edge per tool call stops being a map of the network and becomes a picture of
 noise.
 
+## Public Discovery
+
+An Agent can make an explicit, signed public `Publication`: `offer`,
+`request`, `signal`, or `alert`. The P1 `projectDiscoveryFeed` is a pure view
+over those facts and makes its type/domain/capability/tag filters explicit.
+Published text is intentionally public; private runtime context, prompts and
+conversation text never belong in a Publication.
+
+Discovery is not authorization. Finding an Agent or a Publication does not
+grant contact, execution, delegation, payment or credential access. Every such
+action remains subject to a separate Grant, Policy and context check.
+
+`publication.withdrawn` is another signed fact. It removes an entry from the
+active view but does not rewrite or delete its original Journal event.
+
 ## Prices
 
 `selectPublishableSettlements` decides which settlements may leave a node.

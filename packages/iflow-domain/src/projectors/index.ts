@@ -8,7 +8,7 @@
 
 import type { AnyIFlowEvent } from '../event-types.js'
 import { isEventOfType, isKnownEventType } from '../event-types.js'
-import type { AgentRelationType, ConversationParticipant } from '../objects.js'
+import type { AgentRelationType, ConversationParticipant, Publication, PublicationState } from '../objects.js'
 import type { NetworkState } from '../reducers/network-state.js'
 import type {
   ActivityEntry,
@@ -17,6 +17,8 @@ import type {
   ActivityFeedView,
   AgentStateView,
   ConversationListView,
+  DiscoveryFeedView,
+  DiscoveryFilter,
   NetworkEdge,
   NetworkGraphView,
   NetworkNode,
@@ -39,6 +41,7 @@ export const TRUST_EVIDENCE_PROJECTION_VERSION = 1
 export const MARKET_PROJECTION_VERSION = 1
 export const CONVERSATIONS_PROJECTION_VERSION = 1
 export const REQUESTS_PROJECTION_VERSION = 1
+export const DISCOVERY_FEED_PROJECTION_VERSION = 1
 
 /**
  * `builtAt` is the only place a projector needs a clock, so it is injected
@@ -278,7 +281,10 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
     return `Agent ${event.payload.agentId} bound to ${event.payload.runtime} on ${event.payload.nodeId}`
   }
   if (isEventOfType(event, 'publication.created')) {
-    return `Agent ${event.payload.publishedByAgentId} published proof ${event.payload.publicationId}`
+    return `Agent ${event.payload.publishedByAgentId} published ${event.payload.kind}: ${event.payload.summary}`
+  }
+  if (isEventOfType(event, 'publication.withdrawn')) {
+    return `Agent ${event.payload.publishedByAgentId} withdrew publication ${event.payload.publicationId}`
   }
   return event.type
 }
@@ -332,6 +338,41 @@ export function projectRequests(state: NetworkState, options: ProjectOptions): V
     })
     .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
   return { meta: meta(state, REQUESTS_PROJECTION_VERSION, options), data: { requests } }
+}
+
+/**
+ * Public Discovery is a view over signed Publication facts. It intentionally
+ * performs no personalization, scoring, relationship inference or action
+ * authorization. Those are separate, explainable projections/contracts.
+ */
+export function projectDiscoveryFeed(
+  state: NetworkState,
+  options: ProjectOptions,
+  filter: DiscoveryFilter = {},
+): ViewEnvelope<DiscoveryFeedView> {
+  const builtAt = Date.parse(options.builtAt)
+  const stateOf = (publication: Publication): PublicationState => {
+    if (publication.withdrawnAt) return 'withdrawn'
+    const expiresAt = Date.parse(publication.expiresAt)
+    // Malformed expiresAt is not silently made active. The emitting edge must
+    // use an ISO instant; until it does, the public item remains unavailable.
+    if (!Number.isFinite(expiresAt) || !Number.isFinite(builtAt) || expiresAt <= builtAt) return 'expired'
+    return 'active'
+  }
+
+  const publications = Object.values(state.publications)
+    .map((publication) => ({ publication, state: stateOf(publication) }))
+    .filter((entry) => filter.includeInactive || entry.state === 'active')
+    .filter((entry) => !filter.kinds || filter.kinds.includes(entry.publication.kind))
+    .filter((entry) => !filter.domain || entry.publication.domains.includes(filter.domain))
+    .filter((entry) => !filter.capability || entry.publication.capabilities.includes(filter.capability))
+    .filter((entry) => !filter.tag || entry.publication.tags.includes(filter.tag))
+    .sort((a, b) => b.publication.createdAt.localeCompare(a.publication.createdAt))
+
+  return {
+    meta: meta(state, DISCOVERY_FEED_PROJECTION_VERSION, options),
+    data: { publications, filter: { ...filter } },
+  }
 }
 
 export function projectActivityFeed(state: NetworkState, options: ProjectOptions): ViewEnvelope<ActivityFeedView> {
@@ -548,5 +589,6 @@ export function projectAll(state: NetworkState, options: ProjectOptions): Projec
     tasks: projectTaskGraph(state, options),
     conversations: projectConversations(state, options),
     requests: projectRequests(state, options),
+    discovery: projectDiscoveryFeed(state, options),
   }
 }

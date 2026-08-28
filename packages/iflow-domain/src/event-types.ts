@@ -14,6 +14,9 @@ import type {
   AgentPresence,
   AgentRelationType,
   ConversationParticipant,
+  PublicationKind,
+  PublicationResponse,
+  PublicationVisibility,
   PrincipalRef,
   SettlementVisibility,
   TrustEvidence,
@@ -69,6 +72,9 @@ export const EVENT_TYPES = [
   'workspace.bound',
   // Publishing is a new signed act; it never mutates a local fact.
   'publication.created',
+  // Withdrawal is also a new signed fact. It removes an item from the active
+  // view, never from the immutable public Journal.
+  'publication.withdrawn',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]
@@ -244,7 +250,23 @@ export interface EventPayloadMap {
     commitment: string
     commitmentScheme: 'iflow-commitment-v1'
     publishedByAgentId: string
-    summary?: string
+    /** P1 discovery permits only explicit Agent-signed public statements. */
+    visibility: PublicationVisibility
+    kind: PublicationKind
+    /** Intentionally public; never runtime context, a chat message, or a prompt. */
+    summary: string
+    domains: string[]
+    capabilities?: string[]
+    tags?: string[]
+    /** A preference only; discovery itself never conveys authority. */
+    expectedResponses?: PublicationResponse[]
+    expiresAt: string
+  }
+  'publication.withdrawn': {
+    publicationId: string
+    publishedByAgentId: string
+    /** Optional public explanation. It cannot redact the original statement. */
+    reason?: string
   }
 }
 
