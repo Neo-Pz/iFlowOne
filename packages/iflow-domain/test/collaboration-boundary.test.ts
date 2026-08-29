@@ -46,7 +46,6 @@ const ENFORCED_ELSEWHERE: Record<string, string> = {
 /** Not yet checkable, each with the thing it waits on. Shrinks as P3 lands. */
 const PENDING: Record<string, string> = {
   'P3-06': 'the plugin re-checking policy on the accepting machine; not a domain fold',
-  'P3-12': 'the whole chain; this is the graduation test and lands last',
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +416,115 @@ describe('a snapshot is not a window onto a later one', () => {
   })
 })
 
+describe('P3-12 — the graduation test', () => {
+  scenario('P3-12', 'two Agents on two Nodes take on work, deliver it, and are held to it', () => {
+    // The whole chain, with no money in it. If this closes, iFlowOne has a
+    // collaboration layer; if it does not, it has an A2A message system with
+    // good manners.
+    //
+    // Two node ids, because the point is that the parties are not each other.
+    // The fold is where the guarantees live, so this is a fold — a real
+    // two-machine run belongs to the plugin, and proves delivery rather than
+    // the rules delivery has to obey.
+    const A = 'node-a'
+    const B = 'node-b'
+    let seqA = 0
+    let seqB = 0
+    const from = (node: string, type: string, subject: AnyIFlowEvent['subject'], payload: unknown, issuer: string) => {
+      const seq = node === A ? (seqA += 1) : (seqB += 1)
+      return {
+        id: `${node}-${seq}`,
+        schemaVersion: 1,
+        origin: { nodeId: node, streamId: 'edge', seq },
+        occurredAt: new Date(Date.UTC(2026, 0, 1, 0, seqA + seqB)).toISOString(),
+        correlationId: 'graduation',
+        type,
+        issuer: { id: issuer, kind: 'agent' },
+        subject,
+        payload,
+      } as AnyIFlowEvent
+    }
+
+    const CONV = { kind: 'conversation', id: 'conv-1' } as const
+    const TASK = { kind: 'task', id: 'task-1' } as const
+    const BEE = { kind: 'agent', id: 'agent-b' } as const
+
+    const state = reduceEvents([
+      // They meet, and A's side accepts the thread. Accepting a conversation is
+      // not yet a relationship, and the earlier guards hold that line.
+      from(A, 'conversation.opened', CONV, {
+        participants: [participant('agent-a', 'principal-1'), participant('agent-b', 'principal-2')],
+        initiatedBy: 'agent-a',
+        crossesOwnershipBoundary: true,
+      }, 'agent-a'),
+      from(B, 'conversation.accepted', CONV, { acceptedBy: 'agent-b', decidedBy: 'human' }, 'agent-b'),
+
+      // A relationship, and separately a grant. Neither follows from the other.
+      from(A, 'relation.recorded', BEE, {
+        sourceAgentId: 'agent-a', targetAgentId: 'agent-b', type: 'collaborates_with',
+      }, 'agent-a'),
+      from(A, 'grant.issued', BEE, {
+        grantRef: 'sha256:grant-1',
+        issuerDid: 'did:key:zPrincipalA',
+        subjectDid: 'did:key:zAgentB',
+        scope: ['iflow.cap:task.run'],
+        constraints: ['no spending'],
+        level: 'L2',
+        expiresAt: '2026-12-01T00:00:00.000Z',
+      }, 'agent-a'),
+
+      // A asks B to do the work, citing the grant and saying it leaves the
+      // Principal — which is what makes B unable to finish it alone.
+      from(A, 'task.created', TASK, { title: 'Request from agent-a', ownerAgentId: 'agent-b' }, 'agent-a'),
+      from(A, 'task.delegated', TASK, {
+        toAgentId: 'agent-b',
+        fromAgentId: 'agent-a',
+        grantRef: 'sha256:grant-1',
+        crossesOwnershipBoundary: true,
+      }, 'agent-a'),
+
+      // B does it and hands it back. Evidence, never the work.
+      from(B, 'task.started', TASK, { agentId: 'agent-b', attemptId: 'att-1' }, 'agent-b'),
+      from(B, 'delivery.submitted', TASK, {
+        deliveryId: 'del-1',
+        byAgentId: 'agent-b',
+        outputs: [{ kind: 'artifact', id: 'art-1', summary: 'the analysis' }],
+        evidence: ['sha256:answer'],
+      }, 'agent-b'),
+
+      // A rules. Only now is the work finished.
+      from(A, 'delivery.accepted', TASK, {
+        deliveryId: 'del-1', decidedBy: 'agent-a', decidedByKind: 'human',
+      }, 'agent-a'),
+      from(A, 'trust_evidence.recorded', BEE, {
+        subjectAgentId: 'agent-b', kind: 'grant_accepted', detail: 'delivered and accepted',
+      }, 'agent-a'),
+    ])
+
+    const task = state.tasks['task-1']!
+    expect(task.state, 'the chain did not close').toBe('completed')
+    expect(task.crossesOwnershipBoundary).toBe(true)
+    expect(task.authorizedBy).toBe('sha256:grant-1')
+    expect(task.deliveries[0]?.acceptance?.decidedBy).toBe('agent-a')
+    // Not `selfDeclared`: somebody who was not the executor actually ruled.
+    expect(task.deliveries[0]?.acceptance?.selfDeclared).toBeUndefined()
+
+    expect(Object.keys(state.relations)).toHaveLength(1)
+    expect(grantStateAt(state.grants['sha256:grant-1']!, '2026-06-01T00:00:00.000Z')).toBe('active')
+    expect(state.agents['agent-b']?.trustEvidence).toHaveLength(1)
+
+    // Nothing was refused, nothing was unreadable, and nothing was inferred.
+    expect(state.anomalies, 'a step exceeded its authority').toEqual([])
+    expect(state.unknownEventTypes).toEqual({})
+
+    // And no money was involved at any point — the whole claim of P3. Checked
+    // on the containers rather than by searching the serialised state, which
+    // matches the empty `quotes` key and proves nothing.
+    expect(Object.keys(state.quotes), 'the chain needed a price').toEqual([])
+    expect(task.settlement, 'the chain needed a settlement').toBeUndefined()
+  })
+})
+
 describe('the matrix and the guards cannot drift apart', () => {
   it('accounts for every scenario in docs/p3-acceptance.md', () => {
     const doc = repoDoc('docs/p3-acceptance.md')
@@ -449,6 +557,6 @@ describe('the matrix and the guards cannot drift apart', () => {
     expect(total, 'the matrix is 12 scenarios and 4 reverse acceptances').toBe(16)
     // Not a measure of progress — a place progress is visible. P3 is finished
     // when PENDING is empty.
-    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(2)
+    expect(Object.keys(PENDING).length).toBeLessThanOrEqual(1)
   })
 })
