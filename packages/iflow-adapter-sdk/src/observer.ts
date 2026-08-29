@@ -145,10 +145,18 @@ export class RuntimeObserver {
     )
   }
 
+  /**
+   * A Goal exists.
+   *
+   * `issuer` defaults to this edge's own Agent, which is the shape principle 0
+   * asks for: a person who wants a Goal expresses that to their Agent, and the
+   * Agent is what the network sees. The person belongs in `context.principalId`
+   * — the authority the Agent acted under — not in the issuer.
+   */
   goalCreated(input: {
     goalId: string
     title: string
-    issuer: IFlowIssuer
+    issuer?: IFlowIssuer
     constraints?: string[]
     budget?: { currency: string; limit: number }
     roomId?: string

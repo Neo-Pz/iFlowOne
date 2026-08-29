@@ -6,11 +6,50 @@
  * the legal `type` vocabulary belong to `iflow-domain`.
  */
 
-/** Who asserted the fact or issued the request. */
+/**
+ * The only kind of thing that may perform a network action.
+ *
+ * Principle 0: a person originates intent and authority; an Agent originates
+ * network facts. The union has one member on purpose — it is a statement, not
+ * a placeholder waiting for a second value.
+ */
+export type IFlowNetworkActorKind = 'agent'
+
+/**
+ * Issuer kinds that appear in facts written before principle 0 was frozen.
+ *
+ * Readable forever, emittable never. `system` is here for the same reason as
+ * `human`: an issuer named the Community or the runtime is an action with no
+ * accountable Agent behind it, which principle 6 forbids from the other
+ * direction. Infrastructure that wants to attest something says so in a fact
+ * of its own rather than by signing as a social actor.
+ */
+export type IFlowLegacyIssuerKind = 'human' | 'system'
+
+/** Who asserted the fact or issued the request. Always an Agent. */
 export interface IFlowIssuer {
   id: string
   did?: string
-  kind: 'agent' | 'human' | 'system'
+  kind: IFlowNetworkActorKind
+}
+
+/**
+ * An issuer as it may be found on disk or on the wire.
+ *
+ * Deliberately wider than `IFlowIssuer`: a reader that types every stored
+ * envelope as Agent-issued would be asserting that history complied with a
+ * principle that did not exist when it was written. Emitters take
+ * `IFlowIssuer`; readers take this and check `isLegacyIssuer`.
+ */
+export interface IFlowStoredIssuer {
+  id: string
+  did?: string
+  kind: IFlowNetworkActorKind | IFlowLegacyIssuerKind
+}
+
+/** True for a fact written before the Agent-only issuer invariant. */
+export function isLegacyIssuer(issuer: IFlowStoredIssuer): boolean {
+  return issuer.kind !== 'agent'
 }
 
 /** What the fact is about. */
@@ -65,7 +104,8 @@ export interface IFlowEvent<T = unknown> {
   /** Signed at the origin. Schema v2 and later require this field. */
   visibility: IFlowVisibility
   type: string
-  issuer: IFlowIssuer
+  /** Read as stored. Everything newly emitted is an Agent; history may not be. */
+  issuer: IFlowStoredIssuer
   subject: IFlowSubject
   goalId?: string
   taskId?: string

@@ -43,7 +43,9 @@ async function main(): Promise<void> {
   await observer.goalCreated({
     goalId: 'goal-slice',
     title: 'Produce the quarterly summary',
-    issuer: { id: 'user-lin', kind: 'human' },
+    // Lin wants the summary; `agent-edge` is what the network sees asking for
+    // it. Principle 0 in the golden stream, not only in the doc.
+    context: { principalId: 'user-lin' },
     constraints: ['stay inside the workspace', 'no network writes'],
     budget: { currency: 'USD', limit: 5 },
     roomId: 'room-slice',

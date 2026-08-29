@@ -26,7 +26,23 @@ export interface ValidationResult {
   issues: ValidationIssue[]
 }
 
-const ISSUER_KINDS = new Set(['agent', 'human', 'system'])
+export interface EventValidationOptions {
+  /**
+   * Validate a fact this node is about to emit, rather than one it is reading.
+   *
+   * The asymmetry is the point. Principle 0 constrains what iFlow may say from
+   * now on; it does not authorize rewriting what was already said. A strict
+   * writer plus a tolerant reader is what lets the invariant land without a
+   * migration that reinterprets history as having complied all along.
+   */
+  emitting?: boolean
+}
+
+/** What a new fact may name as its issuer. Principle 0: an Agent, and nothing else. */
+const EMITTABLE_ISSUER_KINDS = new Set(['agent'])
+
+/** What may be found in a journal. `human` and `system` are pre-principle-0 facts. */
+const STORED_ISSUER_KINDS = new Set(['agent', 'human', 'system'])
 const SUBJECT_KINDS = new Set(['agent', 'goal', 'task', 'room', 'artifact', 'conversation'])
 const EVIDENCE_SOURCES = new Set(['dsh', 'a2a', 'user', 'projection'])
 const VISIBILITIES = new Set(['local', 'public'])
@@ -73,7 +89,7 @@ class Check {
   }
 }
 
-export function validateEvent(candidate: unknown): ValidationResult {
+export function validateEvent(candidate: unknown, options: EventValidationOptions = {}): ValidationResult {
   const check = new Check()
   if (!check.object(candidate, '')) return { valid: false, issues: check.issues }
   const event = candidate as Partial<IFlowEvent>
@@ -115,7 +131,7 @@ export function validateEvent(candidate: unknown): ValidationResult {
     const issuer = event.issuer as Record<string, unknown>
     check.string(issuer['id'], 'issuer.id')
     check.string(issuer['did'], 'issuer.did', { required: false })
-    check.enum(issuer['kind'], 'issuer.kind', ISSUER_KINDS)
+    check.enum(issuer['kind'], 'issuer.kind', options.emitting ? EMITTABLE_ISSUER_KINDS : STORED_ISSUER_KINDS)
   }
 
   if (check.object(event.subject, 'subject')) {
@@ -263,8 +279,8 @@ export function validatePrivateBrowserView(candidate: unknown): ValidationResult
 }
 
 /** Throwing wrapper for call sites where an invalid envelope is a bug, not input. */
-export function assertValidEvent(candidate: unknown): asserts candidate is IFlowEvent {
-  const result = validateEvent(candidate)
+export function assertValidEvent(candidate: unknown, options: EventValidationOptions = {}): asserts candidate is IFlowEvent {
+  const result = validateEvent(candidate, options)
   if (!result.valid) {
     throw new Error(`invalid IFlowEvent: ${result.issues.map((i) => `${i.path} ${i.message}`).join('; ')}`)
   }

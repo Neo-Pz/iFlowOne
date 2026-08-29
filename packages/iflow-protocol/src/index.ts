@@ -2,6 +2,9 @@ export type {
   IFlowEvent,
   IFlowCommand,
   IFlowIssuer,
+  IFlowLegacyIssuerKind,
+  IFlowNetworkActorKind,
+  IFlowStoredIssuer,
   IFlowSubject,
   IFlowOrigin,
   IFlowTrace,
@@ -11,6 +14,7 @@ export type {
   SignedIFlowEvent,
   CommandOutcome,
 } from './envelope.js'
+export { isLegacyIssuer } from './envelope.js'
 
 export type {
   ConversationContentOrigin,
@@ -54,7 +58,7 @@ export {
 export type { CountersignFailure, CountersignPayload, CountersignResult } from './countersign.js'
 export { countersignPayloadFor, verifyCountersignedPair } from './countersign.js'
 
-export type { ValidationIssue, ValidationResult } from './validate.js'
+export type { EventValidationOptions, ValidationIssue, ValidationResult } from './validate.js'
 export {
   validateEvent,
   validateCommand,
