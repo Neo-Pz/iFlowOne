@@ -11,25 +11,12 @@
  * not "you forgot a property".
  */
 
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 import { describe, expect, it } from 'vitest'
 
 import type { AnyIFlowEvent } from '../src/event-types.js'
 import { reduceEvents } from '../src/reducers/network-state.js'
 import { projectDiscoveryFeed } from '../src/projectors/index.js'
-
-const src = (file: string) => readFileSync(join(import.meta.dirname, '..', 'src', file), 'utf8')
-
-/**
- * Source with comment leaders and line breaks flattened to single spaces, so a
- * sentence can be matched without knowing where the author's editor wrapped it.
- */
-const prose = (file: string) =>
-  src(file)
-    .replace(/^\s*\*\s?/gm, ' ')
-    .replace(/\s+/g, ' ')
+import { AUTHORITY_SHAPED, fieldsOf, keysDeep, prose, src } from './source.js'
 
 function publication(id: string, overrides: Record<string, unknown> = {}): AnyIFlowEvent {
   return {
@@ -89,34 +76,6 @@ function keysDeep(value: unknown, found = new Set<string>()): Set<string> {
 }
 
 describe('principle 1 — discovery evidence is not authority', () => {
-  /**
-   * The shapes that would turn a discovery result into a permission or a way
-   * to act on one. A feed entry carrying any of these is one click from being
-   * treated as consent, which is the erosion the principle exists to stop.
-   */
-  const AUTHORITY_SHAPED = [
-    'grant',
-    'grants',
-    'grantRef',
-    'permission',
-    'permissions',
-    'permitted',
-    'allowed',
-    'authorized',
-    'authorization',
-    'scope',
-    'scopes',
-    'token',
-    'apiKey',
-    'secret',
-    'credential',
-    'endpoint',
-    'url',
-    'callbackUrl',
-    'budget',
-    'price',
-  ]
-
   it('declares no field on a Publication that could be read as a permission', () => {
     // The guard that actually bites. The reducer whitelists payload fields, so
     // an authority-shaped key smuggled into an event never reaches a view — the

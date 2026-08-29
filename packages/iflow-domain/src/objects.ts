@@ -130,6 +130,15 @@ export type TaskState =
   | 'waiting'
   | 'blocked'
   | 'awaiting_approval'
+  /**
+   * Work was handed back and nobody has ruled on it yet.
+   *
+   * This state exists so that finishing and being accepted are two events with
+   * two authors. Before it, the executor emitted one fact that both delivered
+   * the work and terminated the Task, which meant an Agent could accept its
+   * own output and the requester had no place to disagree.
+   */
+  | 'delivered'
   | 'completed'
   | 'failed'
 
@@ -139,12 +148,14 @@ export type TaskState =
  * behavior cannot rewrite collaborative semantics.
  */
 export const TASK_TRANSITIONS: Readonly<Record<TaskState, readonly TaskState[]>> = Object.freeze({
-  created: ['delegated', 'running', 'waiting', 'blocked', 'failed', 'completed'],
-  delegated: ['running', 'waiting', 'blocked', 'awaiting_approval', 'failed', 'completed'],
-  running: ['waiting', 'blocked', 'awaiting_approval', 'completed', 'failed'],
-  waiting: ['running', 'blocked', 'awaiting_approval', 'completed', 'failed'],
-  blocked: ['running', 'waiting', 'awaiting_approval', 'completed', 'failed'],
-  awaiting_approval: ['running', 'waiting', 'blocked', 'completed', 'failed'],
+  created: ['delegated', 'running', 'waiting', 'blocked', 'delivered', 'failed'],
+  delegated: ['running', 'waiting', 'blocked', 'awaiting_approval', 'delivered', 'failed'],
+  running: ['waiting', 'blocked', 'awaiting_approval', 'delivered', 'failed'],
+  waiting: ['running', 'blocked', 'awaiting_approval', 'delivered', 'failed'],
+  blocked: ['running', 'waiting', 'awaiting_approval', 'delivered', 'failed'],
+  awaiting_approval: ['running', 'waiting', 'blocked', 'delivered', 'failed'],
+  // A rejected Delivery sends the work back rather than ending it.
+  delivered: ['completed', 'running', 'failed'],
   completed: [],
   failed: ['running'],
 })
@@ -179,10 +190,81 @@ export interface Task {
   attempts: ExecutionAttempt[]
   blockingReason?: string
   outputs: TaskOutput[]
+  /** Every hand-back, in order. A rejection is followed by another, not a rewrite. */
+  deliveries: Delivery[]
+  /**
+   * Whether this work was delegated to somebody else's Agent.
+   *
+   * The predicate iFlow exists for. Within one Principal, an Agent finishing
+   * its own work is the end of the matter. Across Principals it is a claim
+   * that someone else has to be able to reject, which is why a cross-boundary
+   * Task cannot reach `completed` without a ruling.
+   */
+  crossesOwnershipBoundary?: boolean
+  /**
+   * The grant a delegation cited, if it cited one.
+   *
+   * A reference to check, not a permission. Whether the work may actually run
+   * is decided by policy on the machine that would run it; recording this only
+   * makes the claim auditable afterwards.
+   */
+  authorizedBy?: string
   /** What this work was priced at, once it settled. */
   settlement?: Settlement
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * Work handed back for a Task.
+ *
+ * A Delivery binds three things a reader needs in order to hold anyone to it:
+ * the Task, the Agent that executed it, and the evidence. It is deliberately
+ * not a conclusion — submitting one says the executor is finished, and says
+ * nothing at all about whether the work was any good.
+ */
+export interface Delivery {
+  deliveryId: string
+  taskId: string
+  /** Who did the work, and therefore who may not rule on it. */
+  byAgentId: string
+  outputs: TaskOutput[]
+  /** References a reader can check — digests, artifact ids. Never the content. */
+  evidence: string[]
+  summary?: string
+  submittedAt: string
+  /** Absent until somebody rules. Absence is not tacit approval. */
+  acceptance?: Acceptance
+}
+
+/**
+ * Somebody ruled on a Delivery.
+ *
+ * A separate fact with a separate author, because the alternative is that
+ * finishing work is the same act as approving it. Only the party that asked
+ * for the work may sign this; a fold that sees the executor accept its own
+ * Delivery records an anomaly and leaves the Task delivered.
+ */
+export interface Acceptance {
+  outcome: 'accepted' | 'rejected'
+  decidedBy: string
+  decidedByKind: 'agent' | 'human'
+  at: string
+  reason?: string
+  /**
+   * Nobody but the executor ruled on this.
+   *
+   * Two things arrive this way and they are not the same: a pre-split
+   * `task.completed` from an older node, and an Agent legitimately finishing
+   * work for its own Principal, where asking a counterparty to accept would be
+   * bureaucracy with no counterparty in it. What both share is the thing worth
+   * recording — no second party ruled — so that is what the flag says, rather
+   * than a claim about which of the two it was.
+   *
+   * Work delegated across an ownership boundary may not end this way at all;
+   * the fold refuses it.
+   */
+  selfDeclared?: boolean
 }
 
 export interface TaskOutput {
@@ -349,6 +431,50 @@ export type AgentRelationType =
   | 'worked_with'
   | 'delegated_to'
   | 'transacted_with'
+
+/**
+ * A record that a grant exists — deliberately not the grant.
+ *
+ * Named `GrantRecord` rather than `Grant` because that is what it is. The
+ * authority lives in a document signed by the Principal's key and verified by
+ * `iflow-id grant verify`; what the journal keeps is the content hash and the
+ * terms, so a reader can say "this Task cited that grant" and go check it.
+ *
+ * A grant a projection could mint is a grant nobody signed, so this object is
+ * never sufficient to permit anything. Its state is derived at read time by
+ * `grantStateAt` and never written back: a revocation ends authority going
+ * forward and does not edit what was true before it.
+ */
+export interface GrantRecord {
+  /** Content hash of the signed grant, issued by iflow-id. */
+  grantRef: string
+  /** The Principal that signed it. */
+  issuerDid: string
+  /** The Agent it was issued to. */
+  subjectDid: string
+  scope: string[]
+  constraints: string[]
+  level?: 'L0' | 'L1' | 'L2' | 'L3'
+  issuedAt: string
+  expiresAt: string
+  revokedAt?: string
+  revocationReason?: string
+}
+
+export type GrantState = 'active' | 'expired' | 'revoked'
+
+/**
+ * How a grant stands at a given instant.
+ *
+ * Derived, never stored. Asking "was this grant valid then" must keep working
+ * after a revocation, because a Task authorized while it held remains
+ * verifiable — that is the difference between a journal and an opinion.
+ */
+export function grantStateAt(record: GrantRecord, at: string): GrantState {
+  if (record.revokedAt && record.revokedAt <= at) return 'revoked'
+  if (record.expiresAt <= at) return 'expired'
+  return 'active'
+}
 
 export interface AgentRelation {
   sourceAgentId: string

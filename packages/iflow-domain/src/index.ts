@@ -1,3 +1,4 @@
+export { grantStateAt } from './objects.js'
 export type {
   Agent,
   AgentRelation,
@@ -28,6 +29,10 @@ export type {
   Settlement,
   SettlementVisibility,
   Task,
+  Delivery,
+  GrantRecord,
+  GrantState,
+  Acceptance,
   TaskOutput,
   TaskState,
   ToolCall,

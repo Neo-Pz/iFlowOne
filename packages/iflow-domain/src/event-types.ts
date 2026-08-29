@@ -37,6 +37,9 @@ export const EVENT_TYPES = [
   'task.blocked',
   'task.awaiting_approval',
   'task.completed',
+  'delivery.submitted',
+  'delivery.accepted',
+  'delivery.rejected',
   'task.failed',
   'room.created',
   'room.participant_joined',
@@ -68,6 +71,9 @@ export const EVENT_TYPES = [
   'conversation.closed',
   // Relationships as durable objects, so the network graph has a real source.
   'relation.recorded',
+  'grant.issued',
+  'grant.revoked',
+  'trust_evidence.recorded',
   // Which local runtime an Agent acts in. Never carries the path.
   'workspace.bound',
   // Publishing is a new signed act; it never mutates a local fact.
@@ -130,12 +136,62 @@ export interface EventPayloadMap {
     roomId?: string
   }
   'task.created': { title: string; parentTaskId?: string; dependsOn?: string[]; ownerAgentId?: string }
-  'task.delegated': { toAgentId: string; fromAgentId?: string; reason?: string }
+  'task.delegated': {
+    toAgentId: string
+    fromAgentId?: string
+    reason?: string
+    grantRef?: string
+    /**
+     * Whether the work is going to another Principal's Agent. Stated by the
+     * delegating side, which is the only one that knows; the fold uses it to
+     * decide whether the executor may end the Task on its own.
+     */
+    crossesOwnershipBoundary?: boolean
+  }
   'task.started': { agentId: string; attemptId: string }
   'task.waiting': { reason: string }
   'task.blocked': { reason: string; blockedOnTaskId?: string }
   'task.awaiting_approval': { approvalId: string; reason: string }
+  /**
+   * Legacy. Kept because older nodes still emit it, and folded as a Delivery
+   * that was accepted the moment it arrived — which is what it meant, though
+   * nobody signed that acceptance. New emitters use `delivery.submitted`.
+   */
   'task.completed': { summary?: string; outputs?: { kind: 'artifact' | 'message'; id: string; summary: string }[] }
+  /**
+   * The executor hands work back. Subject is the Task.
+   *
+   * This does not finish the Task. Whoever asked for the work rules on it in a
+   * separate fact, and until then the Task is `delivered`.
+   */
+  'delivery.submitted': {
+    deliveryId: string
+    byAgentId: string
+    outputs?: { kind: 'artifact' | 'message'; id: string; summary: string }[]
+    /** Digests or artifact ids a reader can check. Never the content itself. */
+    evidence?: string[]
+    summary?: string
+  }
+  /**
+   * The requesting side accepted. Subject is the Task.
+   *
+   * `decidedBy` must not be the Agent that submitted the Delivery: an executor
+   * accepting its own work is the whole failure this split exists to stop, and
+   * the reducer records it as an anomaly rather than completing the Task.
+   */
+  'delivery.accepted': {
+    deliveryId: string
+    decidedBy: string
+    decidedByKind: 'agent' | 'human'
+    reason?: string
+  }
+  /** The requesting side sent it back. The Task returns to `running`. */
+  'delivery.rejected': {
+    deliveryId: string
+    decidedBy: string
+    decidedByKind: 'agent' | 'human'
+    reason: string
+  }
   'task.failed': { reason: string }
   'room.created': { title: string; goalId?: string; rootTaskId?: string }
   'room.participant_joined': { agentId: string }
@@ -236,6 +292,36 @@ export interface EventPayloadMap {
   'conversation.accepted': { acceptedBy: string; decidedBy: AcceptanceDecider }
   'conversation.rejected': { rejectedBy: string; decidedBy: AcceptanceDecider; reason?: string }
   'conversation.closed': { reason?: string }
+  /**
+   * A grant was signed. Subject is the Agent it was issued to.
+   *
+   * This records that authority exists and on what terms. It does not carry
+   * the authority: the signed document is verified by `iflow-id`, and
+   * `grantRef` is the content hash to check it against.
+   */
+  'grant.issued': {
+    grantRef: string
+    issuerDid: string
+    subjectDid: string
+    scope: string[]
+    constraints?: string[]
+    level?: 'L0' | 'L1' | 'L2' | 'L3'
+    expiresAt: string
+  }
+  /** Authority ends going forward. Nothing already recorded changes. */
+  'grant.revoked': { grantRef: string; reason?: string }
+  /**
+   * Something happened that bears on whether an Agent can be believed.
+   *
+   * Evidence, deliberately not a score. A score is one weighting of the facts;
+   * making it a fact of its own would hand every reader that weighting with no
+   * way to disagree. Reputation is a projection over these.
+   */
+  'trust_evidence.recorded': {
+    subjectAgentId: string
+    kind: 'did_verified' | 'agent_card_signed' | 'grant_accepted' | 'peer_endorsement'
+    detail?: string
+  }
   'relation.recorded': {
     sourceAgentId: string
     targetAgentId: string

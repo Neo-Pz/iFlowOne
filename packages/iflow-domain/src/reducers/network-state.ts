@@ -14,6 +14,7 @@ import { isEventOfType, isKnownEventType } from '../event-types.js'
 import type {
   Agent,
   AgentRelation,
+  GrantRecord,
   Approval,
   Conversation,
   ConversationParticipant,
@@ -35,6 +36,11 @@ export interface StateAnomaly {
   taskId: string
   from: TaskState
   to: TaskState
+  /**
+   * Why the fold refused it. Absent for a plain illegal transition, which is
+   * all this type used to carry.
+   */
+  reason?: 'self_acceptance' | 'unknown_delivery' | 'unratified_completion'
 }
 
 export interface NetworkState {
@@ -50,6 +56,8 @@ export interface NetworkState {
   conversations: Record<string, Conversation>
   /** Agent-to-agent relationships, keyed by `source|target|type`. */
   relations: Record<string, AgentRelation>
+  /** Records that grants exist, never the authority itself. */
+  grants: Record<string, GrantRecord>
   /** Public discovery statements, keyed by publicationId. */
   publications: Record<string, Publication>
   /** Bounded ring of recent events, newest last. */
@@ -77,6 +85,7 @@ export function emptyNetworkState(): NetworkState {
     quotes: {},
     conversations: {},
     relations: {},
+    grants: {},
     publications: {},
     recent: [],
     recentTruncated: false,
@@ -115,6 +124,7 @@ function ensureTask(state: NetworkState, id: string, at: string): Task {
     dependsOn: [],
     attempts: [],
     outputs: [],
+    deliveries: [],
     createdAt: at,
     updatedAt: at,
   }
@@ -264,8 +274,13 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
   }
 
   if (isEventOfType(event, 'task.delegated')) {
+    // A citation to audit later, not a permission granted here.
     const task = ensureTask(state, event.subject.id, at)
     task.ownerAgentId = event.payload.toAgentId
+    if (event.payload.grantRef) task.authorizedBy = event.payload.grantRef
+    if (event.payload.crossesOwnershipBoundary !== undefined) {
+      task.crossesOwnershipBoundary = event.payload.crossesOwnershipBoundary
+    }
     ensureAgent(state, event.payload.toAgentId, at)
     moveTask(state, task, 'delegated', event)
     return
@@ -308,12 +323,142 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
   }
 
   if (isEventOfType(event, 'task.completed')) {
+    // One event that both delivers the work and ends the Task.
+    //
+    // Legitimate when there is nobody else to ask: an Agent finishing work for
+    // its own Principal, or a pre-split fact from an older node. Folded as what
+    // it is — a Delivery plus an acceptance nobody else made, marked
+    // `selfDeclared`. Reinterpreting it as delivery-only would strand every
+    // historical Task in `delivered` forever, rewriting what people were
+    // already shown.
+    const task = ensureTask(state, event.subject.id, at)
+
+    if (task.crossesOwnershipBoundary) {
+      // Work delegated to another Principal's Agent. The executor saying it is
+      // finished is a Delivery and nothing more — the other side still has to
+      // rule, and letting this through would restore the exact conflation the
+      // split removed, only for the case where it matters most.
+      state.anomalies.push({
+        eventId: event.id,
+        taskId: task.id,
+        from: task.state,
+        to: 'completed',
+        reason: 'unratified_completion',
+      })
+      const delivered = (event.payload.outputs ?? []).map((output) => ({
+        kind: output.kind,
+        id: output.id,
+        summary: output.summary,
+        at,
+      }))
+      for (const output of delivered) task.outputs.push(output)
+      task.deliveries.push({
+        deliveryId: `self:${event.id}`,
+        taskId: task.id,
+        byAgentId: task.ownerAgentId ?? event.issuer.id,
+        outputs: delivered,
+        evidence: [],
+        summary: event.payload.summary,
+        submittedAt: at,
+      })
+      moveTask(state, task, 'delivered', event)
+      return
+    }
+
+    task.blockingReason = undefined
+    const outputs = (event.payload.outputs ?? []).map((output) => ({
+      kind: output.kind,
+      id: output.id,
+      summary: output.summary,
+      at,
+    }))
+    for (const output of outputs) task.outputs.push(output)
+    task.deliveries.push({
+      deliveryId: `legacy:${event.id}`,
+      taskId: task.id,
+      byAgentId: task.ownerAgentId ?? event.issuer.id,
+      outputs,
+      evidence: [],
+      summary: event.payload.summary,
+      submittedAt: at,
+      acceptance: {
+        outcome: 'accepted',
+        decidedBy: event.issuer.id,
+        decidedByKind: 'agent',
+        at,
+        selfDeclared: true,
+      },
+    })
+    moveTask(state, task, 'delivered', event)
+    moveTask(state, task, 'completed', event)
+    return
+  }
+
+  if (isEventOfType(event, 'delivery.submitted')) {
     const task = ensureTask(state, event.subject.id, at)
     task.blockingReason = undefined
-    for (const output of event.payload.outputs ?? []) {
-      task.outputs.push({ kind: output.kind, id: output.id, summary: output.summary, at })
+    const outputs = (event.payload.outputs ?? []).map((output) => ({
+      kind: output.kind,
+      id: output.id,
+      summary: output.summary,
+      at,
+    }))
+    for (const output of outputs) task.outputs.push(output)
+    task.deliveries.push({
+      deliveryId: event.payload.deliveryId,
+      taskId: task.id,
+      byAgentId: event.payload.byAgentId,
+      outputs,
+      evidence: event.payload.evidence ?? [],
+      summary: event.payload.summary,
+      submittedAt: at,
+    })
+    ensureAgent(state, event.payload.byAgentId, at)
+    moveTask(state, task, 'delivered', event)
+    return
+  }
+
+  if (isEventOfType(event, 'delivery.accepted') || isEventOfType(event, 'delivery.rejected')) {
+    const accepted = isEventOfType(event, 'delivery.accepted')
+    const task = ensureTask(state, event.subject.id, at)
+    const delivery = task.deliveries.find((d) => d.deliveryId === event.payload.deliveryId)
+
+    if (!delivery) {
+      // A ruling on nothing. Recorded rather than applied: inventing the
+      // Delivery it refers to would let an acceptance conjure the very fact it
+      // claims to be judging.
+      state.anomalies.push({
+        eventId: event.id,
+        taskId: task.id,
+        from: task.state,
+        to: accepted ? 'completed' : 'running',
+        reason: 'unknown_delivery',
+      })
+      return
     }
-    moveTask(state, task, 'completed', event)
+
+    if (delivery.byAgentId === event.payload.decidedBy) {
+      // The executor ruling on its own work. This is the failure the split
+      // exists to prevent, so the Task stays delivered and the attempt is kept
+      // where a reader can see it.
+      state.anomalies.push({
+        eventId: event.id,
+        taskId: task.id,
+        from: task.state,
+        to: accepted ? 'completed' : 'running',
+        reason: 'self_acceptance',
+      })
+      return
+    }
+
+    delivery.acceptance = {
+      outcome: accepted ? 'accepted' : 'rejected',
+      decidedBy: event.payload.decidedBy,
+      decidedByKind: event.payload.decidedByKind,
+      at,
+      reason: event.payload.reason,
+    }
+    moveTask(state, task, accepted ? 'completed' : 'running', event)
     return
   }
 
@@ -551,6 +696,42 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     return
   }
 
+  if (isEventOfType(event, 'grant.issued')) {
+    const { grantRef, issuerDid, subjectDid, scope, constraints, level, expiresAt } = event.payload
+    // First writing wins. A second `grant.issued` for the same ref would be a
+    // different document claiming the same content hash, which cannot be true.
+    if (!state.grants[grantRef]) {
+      state.grants[grantRef] = {
+        grantRef,
+        issuerDid,
+        subjectDid,
+        scope: [...scope],
+        constraints: constraints ? [...constraints] : [],
+        level,
+        issuedAt: at,
+        expiresAt,
+      }
+    }
+    return
+  }
+
+  if (isEventOfType(event, 'grant.revoked')) {
+    const record = state.grants[event.payload.grantRef]
+    // Recorded, not erased. Everything authorized while it held stays exactly
+    // as it was; `grantStateAt` is what answers "does it still hold".
+    if (record && !record.revokedAt) {
+      record.revokedAt = at
+      record.revocationReason = event.payload.reason
+    }
+    return
+  }
+
+  if (isEventOfType(event, 'trust_evidence.recorded')) {
+    const agent = ensureAgent(state, event.payload.subjectAgentId, at)
+    agent.trustEvidence.push({ kind: event.payload.kind, at, detail: event.payload.detail })
+    return
+  }
+
   if (isEventOfType(event, 'relation.recorded')) {
     const { sourceAgentId, targetAgentId, type } = event.payload
     const key = relationKeyOf(sourceAgentId, targetAgentId, type)
@@ -664,6 +845,11 @@ function cloneState(state: NetworkState): NetworkState {
       dependsOn: [...t.dependsOn],
       attempts: t.attempts.map((a) => ({ ...a })),
       outputs: t.outputs.map((o) => ({ ...o })),
+      deliveries: t.deliveries.map((d) => ({
+        ...d,
+        outputs: d.outputs.map((o) => ({ ...o })),
+        acceptance: d.acceptance ? { ...d.acceptance } : undefined,
+      })),
     })),
     rooms: mapValues(state.rooms, (r) => ({ ...r, participantAgentIds: [...r.participantAgentIds] })),
     toolCalls: mapValues(state.toolCalls, (c) => ({ ...c })),
@@ -674,6 +860,7 @@ function cloneState(state: NetworkState): NetworkState {
       participants: c.participants.map((p) => ({ ...p })),
     })),
     relations: mapValues(state.relations, (r) => ({ ...r })),
+    grants: mapValues(state.grants, (g) => ({ ...g, scope: [...g.scope], constraints: [...g.constraints] })),
     publications: mapValues(state.publications, (p) => ({
       ...p,
       domains: [...p.domains],

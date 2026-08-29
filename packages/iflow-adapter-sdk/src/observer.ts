@@ -194,12 +194,24 @@ export class RuntimeObserver {
     toAgentId: string
     fromAgentId?: string
     reason?: string
+    /** The grant this delegation cites, so the claim can be audited later. */
+    grantRef?: string
+    /**
+     * Whether the work is going to another Principal's Agent.
+     *
+     * Only the delegating side knows, so only it can say. Saying `true` is what
+     * makes the executor unable to end the Task on its own say-so, which is the
+     * whole point of recording it.
+     */
+    crossesOwnershipBoundary?: boolean
     context?: ObserverContext
   }): Promise<AnyIFlowEvent | undefined> {
     return this.taskEvent('task.delegated', input.taskId, input.context, {
       toAgentId: input.toAgentId,
       fromAgentId: input.fromAgentId,
       reason: input.reason,
+      grantRef: input.grantRef,
+      crossesOwnershipBoundary: input.crossesOwnershipBoundary,
     })
   }
 
@@ -243,6 +255,14 @@ export class RuntimeObserver {
     })
   }
 
+  /**
+   * The executor finished, and nobody else has to agree.
+   *
+   * Correct only when there is no counterparty: an Agent doing work for its own
+   * Principal. For work delegated across an ownership boundary use
+   * `deliverySubmitted` — the fold will not complete such a Task from this
+   * event, and records the attempt.
+   */
   taskCompleted(input: {
     taskId: string
     summary?: string
@@ -252,6 +272,75 @@ export class RuntimeObserver {
     return this.taskEvent('task.completed', input.taskId, input.context, {
       summary: input.summary,
       outputs: input.outputs,
+    })
+  }
+
+  /**
+   * The executor hands work back for someone else to rule on.
+   *
+   * Use this, not `taskCompleted`, whenever the work was delegated to another
+   * Principal's Agent. It does not end the Task: the Task moves to `delivered`
+   * and waits for `deliveryAccepted` or `deliveryRejected` from the side that
+   * asked for it. A cross-boundary Task that reports `taskCompleted` instead is
+   * recorded as an anomaly and still does not complete, so the difference is
+   * enforced rather than trusted.
+   */
+  deliverySubmitted(input: {
+    taskId: string
+    deliveryId: string
+    byAgentId: string
+    outputs?: { kind: 'artifact' | 'message'; id: string; summary: string }[]
+    /** Digests or artifact ids the other side can check. Never the content. */
+    evidence?: string[]
+    summary?: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.taskEvent('delivery.submitted', input.taskId, input.context, {
+      deliveryId: input.deliveryId,
+      byAgentId: input.byAgentId,
+      outputs: input.outputs,
+      evidence: input.evidence,
+      summary: input.summary,
+    })
+  }
+
+  /**
+   * The side that asked for the work accepts it.
+   *
+   * `decidedBy` must not be the Agent that submitted the Delivery. The fold
+   * refuses a self-acceptance and leaves the Task delivered, so emitting one
+   * produces a visible anomaly rather than a quietly finished Task.
+   */
+  deliveryAccepted(input: {
+    taskId: string
+    deliveryId: string
+    decidedBy: string
+    decidedByKind: 'agent' | 'human'
+    reason?: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.taskEvent('delivery.accepted', input.taskId, input.context, {
+      deliveryId: input.deliveryId,
+      decidedBy: input.decidedBy,
+      decidedByKind: input.decidedByKind,
+      reason: input.reason,
+    })
+  }
+
+  /** Sent back. The Task returns to `running`; the Delivery and its reason both stay. */
+  deliveryRejected(input: {
+    taskId: string
+    deliveryId: string
+    decidedBy: string
+    decidedByKind: 'agent' | 'human'
+    reason: string
+    context?: ObserverContext
+  }): Promise<AnyIFlowEvent | undefined> {
+    return this.taskEvent('delivery.rejected', input.taskId, input.context, {
+      deliveryId: input.deliveryId,
+      decidedBy: input.decidedBy,
+      decidedByKind: input.decidedByKind,
+      reason: input.reason,
     })
   }
 
