@@ -9,7 +9,7 @@ import {
   validatePrivateBrowserView,
 } from '../src/index.js'
 import type { ConversationPrivateView } from '../src/index.js'
-import { IFLOW_EVENT_SCHEMA } from '../src/json-schema.js'
+import { IFLOW_EMITTED_EVENT_SCHEMA, IFLOW_EVENT_SCHEMA } from '../src/json-schema.js'
 
 function event(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -51,6 +51,30 @@ describe('P0 event visibility', () => {
 
   it('rejects an invented visibility', () => {
     expect(validateEvent(event({ visibility: 'friends' })).valid).toBe(false)
+  })
+})
+
+describe('principle 0 — the published schemas say who may act', () => {
+  it('lets the read schema keep pre-principle-0 issuers legible', () => {
+    expect(IFLOW_EVENT_SCHEMA.properties.issuer.properties.kind.enum).toEqual(['agent', 'human', 'system'])
+  })
+
+  it('lets the emit schema name only an Agent', () => {
+    expect(IFLOW_EMITTED_EVENT_SCHEMA.properties.issuer.properties.kind.enum).toEqual(['agent'])
+  })
+
+  it('keeps the two schemas identical everywhere else', () => {
+    // A service picks one of these to validate with. If they drift in any
+    // respect other than issuer.kind, that choice quietly becomes a choice
+    // about six other rules as well.
+    const strip = (schema: unknown) => {
+      const clone = JSON.parse(JSON.stringify(schema)) as Record<string, any>
+      delete clone['$id']
+      delete clone['title']
+      clone['properties']['issuer']['properties']['kind'] = null
+      return clone
+    }
+    expect(strip(IFLOW_EMITTED_EVENT_SCHEMA)).toEqual(strip(IFLOW_EVENT_SCHEMA))
   })
 })
 
