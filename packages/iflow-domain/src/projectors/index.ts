@@ -383,6 +383,20 @@ export function projectDiscoveryFeed(
   }
 }
 
+/**
+ * Where the words came from, for the facts that carry words.
+ *
+ * Read from `actorType` on the message events rather than inferred: a fact
+ * that does not say is left saying nothing, because guessing `agent` here
+ * would erase exactly the human trace this field exists to keep.
+ */
+function contentOriginOf(event: AnyIFlowEvent): 'human' | 'agent' | undefined {
+  if (isEventOfType(event, 'conversation.message_sent') || isEventOfType(event, 'conversation.message_received')) {
+    return event.payload.actorType
+  }
+  return undefined
+}
+
 export function projectActivityFeed(state: NetworkState, options: ProjectOptions): ViewEnvelope<ActivityFeedView> {
   const entries: ActivityEntry[] = state.recent.map((event) => ({
     eventId: event.id,
@@ -390,7 +404,10 @@ export function projectActivityFeed(state: NetworkState, options: ProjectOptions
     occurredAt: event.occurredAt,
     correlationId: event.correlationId,
     actorId: event.issuer.id,
-    actorKind: event.issuer.kind,
+    actorKind: event.issuer.kind === 'agent' ? 'agent' : 'legacy',
+    legacyActorKind: event.issuer.kind === 'agent' ? undefined : event.issuer.kind,
+    principalId: event.principalId,
+    contentOrigin: contentOriginOf(event),
     subjectKind: event.subject.kind,
     subjectId: event.subject.id,
     taskId: event.taskId,
