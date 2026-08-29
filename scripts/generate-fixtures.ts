@@ -147,12 +147,15 @@ async function main(): Promise<void> {
     reason: 'writing outside the workspace root',
   })
   tick(9000)
+  // Lin allowed it; `agent-edge` is the Agent that recorded the ruling. The
+  // person is the decision's origin, not the network actor.
   await observer.approvalResolved({
     approvalId: 'appr-write-1',
     decision: 'allowed',
+    decidedBy: 'human',
     agentId: 'agent-writer',
     taskId: 'task-write',
-    context: { issuer: { id: 'user-lin', kind: 'human' } },
+    context: { principalId: 'user-lin' },
   })
   await observer.taskStarted({ taskId: 'task-write', agentId: 'agent-writer', attemptId: 'attempt-write-2' })
   tick(600)

@@ -9,6 +9,7 @@
 
 import type { IFlowEvent } from 'iflow-protocol'
 import type {
+  AcceptanceDecider,
   AgentCoordination,
   AgentExecution,
   AgentPresence,
@@ -175,21 +176,30 @@ export interface EventPayloadMap {
   /**
    * The requesting side accepted. Subject is the Task.
    *
-   * `decidedBy` must not be the Agent that submitted the Delivery: an executor
-   * accepting its own work is the whole failure this split exists to stop, and
-   * the reducer records it as an anomaly rather than completing the Task.
+   * Two fields, because they answer two questions. `acceptedByAgentId` is who
+   * acted on the network, and principle 0 makes that an Agent whether a person
+   * clicked Accept or a standing grant did; `decidedBy` is where the ruling
+   * came from. The previous `decidedBy` + `decidedByKind` pair answered
+   * neither cleanly: a person clicking Accept put a human id in the actor
+   * field, which also meant the self-acceptance check below compared an Agent
+   * id against a person's and never fired.
+   *
+   * `acceptedByAgentId` must not be the Agent that submitted the Delivery: an
+   * executor accepting its own work is the whole failure this split exists to
+   * stop, and the reducer records it as an anomaly rather than completing the
+   * Task.
    */
   'delivery.accepted': {
     deliveryId: string
-    decidedBy: string
-    decidedByKind: 'agent' | 'human'
+    acceptedByAgentId: string
+    decidedBy: AcceptanceDecider
     reason?: string
   }
   /** The requesting side sent it back. The Task returns to `running`. */
   'delivery.rejected': {
     deliveryId: string
-    decidedBy: string
-    decidedByKind: 'agent' | 'human'
+    rejectedByAgentId: string
+    decidedBy: AcceptanceDecider
     reason: string
   }
   'task.failed': { reason: string }
@@ -198,7 +208,19 @@ export interface EventPayloadMap {
   'tool.call_started': { callId: string; toolName: string; agentId: string; argumentsDigest?: string }
   'tool.call_completed': { callId: string; toolName: string; outcome: 'ok' | 'error' | 'denied'; errorMessage?: string }
   'approval.requested': { approvalId: string; toolName?: string; reason: string; agentId: string }
-  'approval.resolved': { approvalId: string; decision: 'allowed' | 'rejected' | 'cancelled' | 'unavailable' }
+  /**
+   * Somebody ruled on a held tool call.
+   *
+   * `decidedBy` exists because this used to be recorded by naming a person as
+   * the event's issuer, which principle 0 no longer allows. The information
+   * was worth keeping and the issuer was the wrong place for it: "did a human
+   * ever look at this" is a property of the decision, not of the actor.
+   */
+  'approval.resolved': {
+    approvalId: string
+    decision: 'allowed' | 'rejected' | 'cancelled' | 'unavailable'
+    decidedBy: AcceptanceDecider
+  }
   'a2a.request_received': { fromDid?: string; fromLabel?: string; remoteTaskId: string; grantRef?: string }
   'execution.attempt_started': { attemptId: string; agentId: string; traceId?: string }
   'execution.attempt_finished': { attemptId: string; outcome: 'succeeded' | 'failed' | 'cancelled' }
@@ -289,8 +311,8 @@ export interface EventPayloadMap {
    * matching. Both are legitimate; conflating them would make an audit unable
    * to answer "did a human ever look at this".
    */
-  'conversation.accepted': { acceptedBy: string; decidedBy: AcceptanceDecider }
-  'conversation.rejected': { rejectedBy: string; decidedBy: AcceptanceDecider; reason?: string }
+  'conversation.accepted': { acceptedByAgentId: string; decidedBy: AcceptanceDecider }
+  'conversation.rejected': { rejectedByAgentId: string; decidedBy: AcceptanceDecider; reason?: string }
   'conversation.closed': { reason?: string }
   /**
    * A grant was signed. Subject is the Agent it was issued to.
@@ -361,9 +383,6 @@ export type MessageActorType = 'human' | 'agent'
 
 /** How the message came to exist. */
 export type MessageOrigin = 'keyboard' | 'agent' | 'api' | 'a2a' | 'autonomous'
-
-/** Whether a person or a standing policy made an acceptance decision. */
-export type AcceptanceDecider = 'human' | 'policy'
 
 /**
  * An event whose `type` and `payload` are known to belong together.

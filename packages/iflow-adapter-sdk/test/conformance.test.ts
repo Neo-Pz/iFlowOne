@@ -91,6 +91,7 @@ async function runSlice(edge: Awaited<ReturnType<typeof createEdge>>): Promise<v
   await edge.observer.approvalResolved({
     approvalId: 'appr-1',
     decision: 'allowed',
+    decidedBy: 'human',
     agentId: 'agent-child-b',
     taskId: 'task-b',
   })

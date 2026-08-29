@@ -383,8 +383,10 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
       submittedAt: at,
       acceptance: {
         outcome: 'accepted',
-        decidedBy: event.issuer.id,
-        decidedByKind: 'agent',
+        ruledByAgentId: event.issuer.id,
+        // A pre-split `task.completed` carries no decision origin. `policy`
+        // is the honest reading: nothing recorded a person looking at it.
+        decidedBy: 'policy',
         at,
         selfDeclared: true,
       },
@@ -437,7 +439,11 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
       return
     }
 
-    if (delivery.byAgentId === event.payload.decidedBy) {
+    const ruledByAgentId = isEventOfType(event, 'delivery.accepted')
+      ? event.payload.acceptedByAgentId
+      : event.payload.rejectedByAgentId
+
+    if (delivery.byAgentId === ruledByAgentId) {
       // The executor ruling on its own work. This is the failure the split
       // exists to prevent, so the Task stays delivered and the attempt is kept
       // where a reader can see it.
@@ -453,8 +459,8 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
 
     delivery.acceptance = {
       outcome: accepted ? 'accepted' : 'rejected',
+      ruledByAgentId,
       decidedBy: event.payload.decidedBy,
-      decidedByKind: event.payload.decidedByKind,
       at,
       reason: event.payload.reason,
     }
@@ -543,6 +549,7 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     if (approval) {
       approval.resolvedAt = at
       approval.decision = event.payload.decision
+      approval.decidedBy = event.payload.decidedBy
       const agent = state.agents[approval.agentId]
       if (agent && agent.state.coordination === 'awaiting_approval') {
         agent.state = { ...agent.state, coordination: 'ready' }

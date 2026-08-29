@@ -849,6 +849,7 @@
     },
     "occurredAt": "2026-01-01T00:00:18.300Z",
     "correlationId": "corr-0015",
+    "principalId": "user-lin",
     "visibility": "local",
     "type": "approval.resolved",
     "issuer": {
@@ -863,7 +864,8 @@
     "taskId": "task-write",
     "payload": {
       "approvalId": "appr-write-1",
-      "decision": "allowed"
+      "decision": "allowed",
+      "decidedBy": "human"
     },
     "evidence": {
       "source": "dsh"

@@ -73,7 +73,7 @@ describe('conversation lifecycle', () => {
       event(
         'conversation.accepted',
         { kind: 'conversation', id: 'conv-1' },
-        { acceptedBy: 'agent-b', decidedBy: 'human' },
+        { acceptedByAgentId: 'agent-b', decidedBy: 'human' },
         { conversationId: 'conv-1' },
       ),
       event(
@@ -99,7 +99,7 @@ describe('conversation lifecycle', () => {
       event(
         'conversation.rejected',
         { kind: 'conversation', id: 'conv-1' },
-        { rejectedBy: 'agent-b', decidedBy: 'human' },
+        { rejectedByAgentId: 'agent-b', decidedBy: 'human' },
         { conversationId: 'conv-1' },
       ),
       event(
@@ -206,7 +206,7 @@ describe('the requests inbox', () => {
       event(
         'conversation.accepted',
         { kind: 'conversation', id: 'conv-1' },
-        { acceptedBy: 'agent-b', decidedBy: 'policy' },
+        { acceptedByAgentId: 'agent-b', decidedBy: 'policy' },
         { conversationId: 'conv-1' },
       ),
     ])

@@ -315,22 +315,26 @@ export class RuntimeObserver {
   /**
    * The side that asked for the work accepts it.
    *
-   * `decidedBy` must not be the Agent that submitted the Delivery. The fold
-   * refuses a self-acceptance and leaves the Task delivered, so emitting one
-   * produces a visible anomaly rather than a quietly finished Task.
+   * `acceptedByAgentId` is the Agent doing the accepting — the Principal's own
+   * Agent when a person clicked Accept, which is what principle 0 asks for —
+   * and `decidedBy` says whether that person or a standing policy decided.
+   *
+   * It must not be the Agent that submitted the Delivery. The fold refuses a
+   * self-acceptance and leaves the Task delivered, so emitting one produces a
+   * visible anomaly rather than a quietly finished Task.
    */
   deliveryAccepted(input: {
     taskId: string
     deliveryId: string
-    decidedBy: string
-    decidedByKind: 'agent' | 'human'
+    acceptedByAgentId: string
+    decidedBy: AcceptanceDecider
     reason?: string
     context?: ObserverContext
   }): Promise<AnyIFlowEvent | undefined> {
     return this.taskEvent('delivery.accepted', input.taskId, input.context, {
       deliveryId: input.deliveryId,
+      acceptedByAgentId: input.acceptedByAgentId,
       decidedBy: input.decidedBy,
-      decidedByKind: input.decidedByKind,
       reason: input.reason,
     })
   }
@@ -339,15 +343,15 @@ export class RuntimeObserver {
   deliveryRejected(input: {
     taskId: string
     deliveryId: string
-    decidedBy: string
-    decidedByKind: 'agent' | 'human'
+    rejectedByAgentId: string
+    decidedBy: AcceptanceDecider
     reason: string
     context?: ObserverContext
   }): Promise<AnyIFlowEvent | undefined> {
     return this.taskEvent('delivery.rejected', input.taskId, input.context, {
       deliveryId: input.deliveryId,
+      rejectedByAgentId: input.rejectedByAgentId,
       decidedBy: input.decidedBy,
-      decidedByKind: input.decidedByKind,
       reason: input.reason,
     })
   }
@@ -470,9 +474,18 @@ export class RuntimeObserver {
     )
   }
 
+  /**
+   * A held tool call was ruled on.
+   *
+   * `decidedBy` is where the ruling came from. A person resolving an approval
+   * used to be recorded by naming them as the event's issuer; principle 0 puts
+   * the Agent there instead, so the fact that anyone looked has to be said
+   * outright or it is lost.
+   */
   approvalResolved(input: {
     approvalId: string
     decision: 'allowed' | 'rejected' | 'cancelled' | 'unavailable'
+    decidedBy: AcceptanceDecider
     agentId: string
     taskId?: string
     context?: ObserverContext
@@ -483,7 +496,7 @@ export class RuntimeObserver {
         subject: input.taskId ? { kind: 'task', id: input.taskId } : { kind: 'agent', id: input.agentId },
         taskId: input.taskId,
         correlationId: input.context?.correlationId ?? (input.taskId ? this.correlationFor(input.taskId) : undefined),
-        payload: { approvalId: input.approvalId, decision: input.decision },
+        payload: { approvalId: input.approvalId, decision: input.decision, decidedBy: input.decidedBy },
         ...spreadWithoutCorrelation(input.context),
       }),
     )
@@ -715,25 +728,25 @@ export class RuntimeObserver {
 
   conversationAccepted(input: {
     conversationId: string
-    acceptedBy: string
+    acceptedByAgentId: string
     decidedBy: AcceptanceDecider
     context?: ObserverContext
   }): Promise<AnyIFlowEvent | undefined> {
     return this.conversationEvent('conversation.accepted', input.conversationId, input.context, {
-      acceptedBy: input.acceptedBy,
+      acceptedByAgentId: input.acceptedByAgentId,
       decidedBy: input.decidedBy,
     })
   }
 
   conversationRejected(input: {
     conversationId: string
-    rejectedBy: string
+    rejectedByAgentId: string
     decidedBy: AcceptanceDecider
     reason?: string
     context?: ObserverContext
   }): Promise<AnyIFlowEvent | undefined> {
     return this.conversationEvent('conversation.rejected', input.conversationId, input.context, {
-      rejectedBy: input.rejectedBy,
+      rejectedByAgentId: input.rejectedByAgentId,
       decidedBy: input.decidedBy,
       reason: input.reason,
     })

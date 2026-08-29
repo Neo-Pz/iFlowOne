@@ -90,7 +90,7 @@ describe('P3-01 — a conversation is not a relationship', () => {
         crossesOwnershipBoundary: true,
       }),
       event('conversation.accepted', { kind: 'conversation', id: 'conv-1' }, {
-        acceptedBy: 'agent-b',
+        acceptedByAgentId: 'agent-b',
         decidedBy: 'human',
       }),
     ])
@@ -167,12 +167,13 @@ describe('P3-07, P3-08, P3-R-C — delivery is not acceptance', () => {
       summary: 'done',
     })
 
-  const ruling = (type: string, decidedBy: string) =>
+  const ruling = (type: string, ruledByAgentId: string) =>
     event(type, { kind: 'task', id: 'task-1' }, {
       deliveryId: 'del-1',
-      decidedBy,
-      decidedByKind: 'agent',
-      reason: type === 'delivery.rejected' ? 'not what was asked for' : undefined,
+      ...(type === 'delivery.rejected'
+        ? { rejectedByAgentId: ruledByAgentId, reason: 'not what was asked for' }
+        : { acceptedByAgentId: ruledByAgentId }),
+      decidedBy: 'policy',
     })
 
   scenario('P3-R-C', 'completed is unreachable except through a ruling', () => {
@@ -202,7 +203,7 @@ describe('P3-07, P3-08, P3-R-C — delivery is not acceptance', () => {
     const accepted = reduceEvents([submitted(), ruling('delivery.accepted', 'agent-a')])
     const task = accepted.tasks['task-1']!
     expect(task.state).toBe('completed')
-    expect(task.deliveries[0]?.acceptance?.decidedBy).toBe('agent-a')
+    expect(task.deliveries[0]?.acceptance?.ruledByAgentId).toBe('agent-a')
     expect(task.deliveries[0]?.acceptance?.selfDeclared).toBeUndefined()
     expect(accepted.anomalies).toEqual([])
 
@@ -400,8 +401,8 @@ describe('a snapshot is not a window onto a later one', () => {
     })
     const accepted = event('delivery.accepted', { kind: 'task', id: 'task-1' }, {
       deliveryId: 'del-1',
-      decidedBy: 'agent-a',
-      decidedByKind: 'agent',
+      acceptedByAgentId: 'agent-a',
+      decidedBy: 'policy',
     })
 
     const afterDelivery = applyEvent(emptyNetworkState(), submitted)
@@ -457,7 +458,7 @@ describe('P3-12 — the graduation test', () => {
         initiatedBy: 'agent-a',
         crossesOwnershipBoundary: true,
       }, 'agent-a'),
-      from(B, 'conversation.accepted', CONV, { acceptedBy: 'agent-b', decidedBy: 'human' }, 'agent-b'),
+      from(B, 'conversation.accepted', CONV, { acceptedByAgentId: 'agent-b', decidedBy: 'human' }, 'agent-b'),
 
       // A relationship, and separately a grant. Neither follows from the other.
       from(A, 'relation.recorded', BEE, {
@@ -493,8 +494,9 @@ describe('P3-12 — the graduation test', () => {
       }, 'agent-b'),
 
       // A rules. Only now is the work finished.
+      // A person approved; A's own Agent is what the network records as acting.
       from(A, 'delivery.accepted', TASK, {
-        deliveryId: 'del-1', decidedBy: 'agent-a', decidedByKind: 'human',
+        deliveryId: 'del-1', acceptedByAgentId: 'agent-a', decidedBy: 'human',
       }, 'agent-a'),
       from(A, 'trust_evidence.recorded', BEE, {
         subjectAgentId: 'agent-b', kind: 'grant_accepted', detail: 'delivered and accepted',
@@ -505,7 +507,8 @@ describe('P3-12 — the graduation test', () => {
     expect(task.state, 'the chain did not close').toBe('completed')
     expect(task.crossesOwnershipBoundary).toBe(true)
     expect(task.authorizedBy).toBe('sha256:grant-1')
-    expect(task.deliveries[0]?.acceptance?.decidedBy).toBe('agent-a')
+    expect(task.deliveries[0]?.acceptance?.ruledByAgentId).toBe('agent-a')
+    expect(task.deliveries[0]?.acceptance?.decidedBy).toBe('human')
     // Not `selfDeclared`: somebody who was not the executor actually ruled.
     expect(task.deliveries[0]?.acceptance?.selfDeclared).toBeUndefined()
 

@@ -1,5 +1,7 @@
 export { grantStateAt } from './objects.js'
 export type {
+  Acceptance,
+  AcceptanceDecider,
   Agent,
   AgentRelation,
   AgentRelationType,
@@ -32,7 +34,6 @@ export type {
   Delivery,
   GrantRecord,
   GrantState,
-  Acceptance,
   TaskOutput,
   TaskState,
   ToolCall,
@@ -42,7 +43,6 @@ export type {
 export { INITIAL_AGENT_STATE, TASK_TRANSITIONS, canTransition } from './objects.js'
 
 export type {
-  AcceptanceDecider,
   AnyIFlowEvent,
   DomainEvent,
   EventPayloadMap,

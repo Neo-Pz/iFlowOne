@@ -238,6 +238,17 @@ export interface Delivery {
 }
 
 /**
+ * Where a ruling came from.
+ *
+ * The counterpart to the actor field beside it, and the only place a person
+ * appears in a decision: principle 0 puts the Agent in the actor field and the
+ * origin of the decision here. `policy` is a standing grant deciding without
+ * asking, which is a different fact from a person deciding — conflating them
+ * would make an audit unable to answer "did a human ever look at this".
+ */
+export type AcceptanceDecider = 'human' | 'policy'
+
+/**
  * Somebody ruled on a Delivery.
  *
  * A separate fact with a separate author, because the alternative is that
@@ -247,8 +258,10 @@ export interface Delivery {
  */
 export interface Acceptance {
   outcome: 'accepted' | 'rejected'
-  decidedBy: string
-  decidedByKind: 'agent' | 'human'
+  /** The Agent that performed the ruling. Principle 0: never a person. */
+  ruledByAgentId: string
+  /** Where the ruling came from: a person approving, or a standing policy. */
+  decidedBy: AcceptanceDecider
   at: string
   reason?: string
   /**
@@ -370,6 +383,8 @@ export interface Approval {
   requestedAt: string
   resolvedAt?: string
   decision?: 'allowed' | 'rejected' | 'cancelled' | 'unavailable'
+  /** Whether a person or a standing policy resolved it. Set with `decision`. */
+  decidedBy?: AcceptanceDecider
 }
 
 /**
