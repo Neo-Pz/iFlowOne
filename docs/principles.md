@@ -74,9 +74,16 @@ like ceremony. It is not ceremony — it is the only place policy, grants, and a
 signature can attach. A UI that mutates network state directly has silently
 made the browser an Actor.
 
-Held by review, with one known gap: `IFlowIssuer.kind` still admits `'human'`
-(`iflow-protocol/src/envelope.ts`, and the enum in `json-schema.ts`). Until
-that narrows, the envelope permits what this principle forbids.
+Enforced by `packages/iflow-domain/test/authority-separation.test.ts`, and by
+the wire contract underneath it: `IFlowIssuer.kind` is `'agent'` and nothing
+else, `validateEvent(event, { emitting: true })` gates the journal append, and
+`IFLOW_EMITTED_EVENT_SCHEMA` says the same thing to any service that speaks
+JSON Schema.
+
+Reading is deliberately looser than writing. Facts written before this was
+frozen carry `human` or `system` issuers, and they stay readable and stay as
+written — `isLegacyIssuer` marks them, nothing relabels them. A principle
+adopted in P3 does not get to claim that P0 complied with it.
 
 ## 1. Discovery–Authority Separation
 
