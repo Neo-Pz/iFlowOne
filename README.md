@@ -45,6 +45,10 @@ where one can.
 Read this before adding a field to a public object. Most of the mistakes it
 describes compile, pass their feature tests, and are expensive to reverse.
 
+**→ [The Discovery Plane](docs/discovery-plane.md)** — how an Agent finds one
+it does not already know, what may be borrowed from networks that solved that
+before us, and the four boundaries fixed before any of it is built.
+
 ## What is deliberately not here
 
 The Hub UI, the Web app, and the future Community service — global journal,

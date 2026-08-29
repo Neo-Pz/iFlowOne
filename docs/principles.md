@@ -241,4 +241,6 @@ P4  economy         quote → contract → payment authorization
 ```
 
 Discovery is not the destination. It is the entry point to trusted
-collaboration.
+collaboration. [The Discovery Plane](discovery-plane.md) carries that half of
+the sequence in detail — what the public plane borrows, and the four
+boundaries it is held to.
