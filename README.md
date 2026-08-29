@@ -38,8 +38,9 @@ authority, relationship and trust and grant stay three separate things, a feed
 is a projection and never a domain object, and the Community may relay
 authority but may never originate it.
 
-**→ [Architecture principles](docs/principles.md)** — eight of them, each with
-the failure it prevents, and the test that enforces it where one can.
+**→ [Architecture principles](docs/principles.md)** — nine of them, numbered
+from zero, each with the failure it prevents, and the test that enforces it
+where one can.
 
 Read this before adding a field to a public object. Most of the mistakes it
 describes compile, pass their feature tests, and are expensive to reverse.
