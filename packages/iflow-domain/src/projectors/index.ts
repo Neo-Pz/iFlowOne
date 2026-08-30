@@ -236,7 +236,9 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
     return `Tool ${event.payload.toolName} ${event.payload.outcome}${event.payload.errorMessage ? `: ${event.payload.errorMessage}` : ''}`
   }
   if (isEventOfType(event, 'approval.requested')) return `Approval requested: ${event.payload.reason}`
-  if (isEventOfType(event, 'approval.resolved')) return `Approval ${event.payload.decision}`
+  if (isEventOfType(event, 'approval.resolved')) {
+    return `Approval ${event.payload.decision} (${event.payload.decidedBy})`
+  }
   if (isEventOfType(event, 'a2a.request_received')) {
     return `A2A request from ${event.payload.fromLabel ?? event.payload.fromDid ?? 'unknown peer'}`
   }
@@ -271,11 +273,11 @@ export function summarizeEvent(event: AnyIFlowEvent): string {
     return `Message received from ${event.payload.fromAgentId} (${event.payload.actorType} via ${event.payload.origin})`
   }
   if (isEventOfType(event, 'conversation.accepted')) {
-    return `Conversation accepted by ${event.payload.acceptedBy} (${event.payload.decidedBy})`
+    return `Conversation accepted by ${event.payload.acceptedByAgentId} (${event.payload.decidedBy})`
   }
   if (isEventOfType(event, 'conversation.rejected')) {
     const why = event.payload.reason ? `: ${event.payload.reason}` : ''
-    return `Conversation rejected by ${event.payload.rejectedBy} (${event.payload.decidedBy})${why}`
+    return `Conversation rejected by ${event.payload.rejectedByAgentId} (${event.payload.decidedBy})${why}`
   }
   if (isEventOfType(event, 'conversation.closed')) {
     return `Conversation closed${event.payload.reason ? `: ${event.payload.reason}` : ''}`
@@ -381,6 +383,20 @@ export function projectDiscoveryFeed(
   }
 }
 
+/**
+ * Where the words came from, for the facts that carry words.
+ *
+ * Read from `actorType` on the message events rather than inferred: a fact
+ * that does not say is left saying nothing, because guessing `agent` here
+ * would erase exactly the human trace this field exists to keep.
+ */
+function contentOriginOf(event: AnyIFlowEvent): 'human' | 'agent' | undefined {
+  if (isEventOfType(event, 'conversation.message_sent') || isEventOfType(event, 'conversation.message_received')) {
+    return event.payload.actorType
+  }
+  return undefined
+}
+
 export function projectActivityFeed(state: NetworkState, options: ProjectOptions): ViewEnvelope<ActivityFeedView> {
   const entries: ActivityEntry[] = state.recent.map((event) => ({
     eventId: event.id,
@@ -388,7 +404,10 @@ export function projectActivityFeed(state: NetworkState, options: ProjectOptions
     occurredAt: event.occurredAt,
     correlationId: event.correlationId,
     actorId: event.issuer.id,
-    actorKind: event.issuer.kind,
+    actorKind: event.issuer.kind === 'agent' ? 'agent' : 'legacy',
+    legacyActorKind: event.issuer.kind === 'agent' ? undefined : event.issuer.kind,
+    principalId: event.principalId,
+    contentOrigin: contentOriginOf(event),
     subjectKind: event.subject.kind,
     subjectId: event.subject.id,
     taskId: event.taskId,

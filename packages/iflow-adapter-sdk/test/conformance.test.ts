@@ -35,7 +35,7 @@ async function runSlice(edge: Awaited<ReturnType<typeof createEdge>>): Promise<v
   await edge.observer.goalCreated({
     goalId: 'goal-1',
     title: 'Ship the first slice',
-    issuer: { id: 'user-1', kind: 'human' },
+    context: { principalId: 'user-1' },
     roomId: 'room-1',
   })
   await edge.observer.roomCreated({ roomId: 'room-1', title: 'Slice room', goalId: 'goal-1' })
@@ -91,6 +91,7 @@ async function runSlice(edge: Awaited<ReturnType<typeof createEdge>>): Promise<v
   await edge.observer.approvalResolved({
     approvalId: 'appr-1',
     decision: 'allowed',
+    decidedBy: 'human',
     agentId: 'agent-child-b',
     taskId: 'task-b',
   })

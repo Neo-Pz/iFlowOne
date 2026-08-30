@@ -110,6 +110,9 @@ export class OriginJournal {
           if (!tolerateCorruptLines) throw new Error(`origin journal has an unparsable line: ${trimmed.slice(0, 120)}`)
           continue
         }
+        // Read tolerantly. A pre-principle-0 fact with a `human` or `system`
+        // issuer is history, not corruption, and dropping it here would be a
+        // silent rewrite of the journal.
         const result = validateEvent(parsed)
         if (!result.valid) {
           this.corruptLines += 1
@@ -229,10 +232,13 @@ export class OriginJournal {
       principalId: input.principalId,
       visibility: input.visibility ?? 'local',
       type: input.type,
+      // The node's own Agent, asserting with its own key. It was already that
+      // in every field but the label, and principle 0 does not let a signed
+      // network fact be attributed to the runtime instead of to an Agent.
       issuer: input.issuer ?? {
         id: this.descriptor.selfAgentId,
         did: this.descriptor.did,
-        kind: 'system',
+        kind: 'agent',
       },
       subject: input.subject,
       goalId: input.goalId,
@@ -244,7 +250,10 @@ export class OriginJournal {
       evidence: input.evidence ?? { source: 'dsh' },
     }
 
-    const validation = validateEvent(event)
+    // Emitting, not reading: this is the gate that keeps a non-Agent issuer
+    // from entering the journal, while `load` below still accepts the ones
+    // written before the invariant existed.
+    const validation = validateEvent(event, { emitting: true })
     if (!validation.valid) {
       throw new Error(
         `iflow: refusing to journal a malformed ${input.type} event: ` +

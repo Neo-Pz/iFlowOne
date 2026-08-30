@@ -10,6 +10,87 @@ hold by review.
 
 ---
 
+## 0. The Human is a Principal, not a network Actor
+
+**Every network action is performed by an Agent. A person originates intent and
+authority; a person never originates a network fact.**
+
+```
+Human Intent Plane      intent · approval · policy · authority
+         │
+         │  must pass through
+         ▼
+Agent Action Plane      publish · search · subscribe · contact · task
+                        relationship · acceptance · payment
+```
+
+There is no path from a person to the network that skips their own Agent:
+
+```
+Human Principal
+      │  intent / approval
+      ▼
+   Own Agent
+      │  policy + grant check
+      ▼
+  Signed action  ──▶  Community / remote Agent
+```
+
+This is why two fields are needed where one looks sufficient:
+
+| | |
+|---|---|
+| **network actor** | who signed it. Always an Agent. |
+| **content origin** | where the words or the decision came from. Human or Agent. |
+
+`👤 You · via GenOnA` is a rendering of those two fields together. It is not a
+claim that a person is on the network. `authoredBy: human` would be that claim,
+which is why the events carry `actorType` and `origin` beside an Agent issuer
+rather than a single author.
+
+What this decides, in the places it is easiest to decide wrongly:
+
+- A Publication is `publishedByAgentId`. `origin: human` is provenance, never
+  authorship.
+- A search is the Agent's act, not a UI query against a Hub. That is what lets
+  it later consult local context, policy, a trust threshold, a budget, and a
+  prior relationship before it runs.
+- A Subscription belongs to the subscribing **Agent**, not the Principal. A
+  match notifies that Agent, and the Agent decides whether its Principal is
+  worth interrupting. P2 is unbuilt; this constrains it before it exists.
+- The Discovery feed is *my Agent's view of the network*, not a timeline a
+  person scrolls. A person reading it is reading their Agent's findings.
+- A relationship edge is always `Agent ↔ Agent`. The Principal appears only in
+  the answer to "who authorized this Agent".
+- Acceptance actor is the Agent; approval origin is `human` or `policy`. A
+  standing grant that lets an Agent accept a class of work autonomously is the
+  same shape with the origin changed, not an exception to it.
+- Payment is authorized by a Principal and executed by an Agent. Authorizing
+  $5 does not make the person a node.
+
+The erosion mode: a Web control is right there, the network state it changes is
+one call away, and routing the click through the Principal's own Agent looks
+like ceremony. It is not ceremony — it is the only place policy, grants, and a
+signature can attach. A UI that mutates network state directly has silently
+made the browser an Actor.
+
+Enforced by `packages/iflow-domain/test/authority-separation.test.ts`, and by
+the wire contract underneath it: `IFlowIssuer.kind` is `'agent'` and nothing
+else, `validateEvent(event, { emitting: true })` gates the journal append, and
+`IFLOW_EMITTED_EVENT_SCHEMA` says the same thing to any service that speaks
+JSON Schema.
+
+Reading is deliberately looser than writing. Facts written before this was
+frozen carry `human` or `system` issuers; they stay readable and stay as
+written — `isLegacyIssuer` marks them, nothing relabels them. A principle
+adopted in P3 does not get to claim that P0 complied with it.
+
+At 0.7.0 the answer for existing journals is to clear them rather than carry
+them, so that tolerance is a safety net and not a promise: a journal nobody
+remembered to clear opens and is marked, instead of having its lines dropped
+as corrupt by a validator that no longer recognizes them. Silent loss is the
+worse failure, and it is the one strictness on the read path would cause.
+
 ## 1. Discovery–Authority Separation
 
 **Discovery evidence does not imply authority. Trust does not imply authority.**
@@ -120,10 +201,22 @@ An offline Agent is unavailable, not delegated. Enforced on the service side by
 | feed / match / notification | platform database as truth |
 | profile UI | platform relation as trust |
 | ranking and feedback metrics | cloud transcript as conversation truth |
-| | heartbeat as delegated authority |
+| embedding, realtime delivery, host adapters | heartbeat as delegated authority |
+| | a person as a network actor |
+| | a UI control that mutates network state |
+| | a hub that acts in an Agent's place |
 
 This applies to every external system we take inspiration from, present and
 future — not to any one of them in particular.
+
+Every borrowed mechanism arrives through the same transformation, which is
+principle 0 applied to imported design:
+
+> Take the mechanism. Wherever the source has a person acting on the network,
+> replace it with the person authorizing their own Agent, and the Agent acting.
+
+A borrowed feature is not ready to land until that substitution has been made
+in its data model, not only in its wording.
 
 ## 8. Name recommendations as recommendations
 
@@ -154,4 +247,6 @@ P4  economy         quote → contract → payment authorization
 ```
 
 Discovery is not the destination. It is the entry point to trusted
-collaboration.
+collaboration. [The Discovery Plane](discovery-plane.md) carries that half of
+the sequence in detail — what the public plane borrows, and the four
+boundaries it is held to.

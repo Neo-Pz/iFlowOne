@@ -43,7 +43,9 @@ async function main(): Promise<void> {
   await observer.goalCreated({
     goalId: 'goal-slice',
     title: 'Produce the quarterly summary',
-    issuer: { id: 'user-lin', kind: 'human' },
+    // Lin wants the summary; `agent-edge` is what the network sees asking for
+    // it. Principle 0 in the golden stream, not only in the doc.
+    context: { principalId: 'user-lin' },
     constraints: ['stay inside the workspace', 'no network writes'],
     budget: { currency: 'USD', limit: 5 },
     roomId: 'room-slice',
@@ -145,12 +147,15 @@ async function main(): Promise<void> {
     reason: 'writing outside the workspace root',
   })
   tick(9000)
+  // Lin allowed it; `agent-edge` is the Agent that recorded the ruling. The
+  // person is the decision's origin, not the network actor.
   await observer.approvalResolved({
     approvalId: 'appr-write-1',
     decision: 'allowed',
+    decidedBy: 'human',
     agentId: 'agent-writer',
     taskId: 'task-write',
-    context: { issuer: { id: 'user-lin', kind: 'human' } },
+    context: { principalId: 'user-lin' },
   })
   await observer.taskStarted({ taskId: 'task-write', agentId: 'agent-writer', attemptId: 'attempt-write-2' })
   tick(600)

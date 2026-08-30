@@ -126,13 +126,40 @@ export interface TaskGraphView {
   edges: { source: string; target: string; kind: 'dependency' | 'subtask' }[]
 }
 
+/**
+ * One fact, as a reader sees it.
+ *
+ * Three separate things about "who", because principle 0 says they are three
+ * separate things and a single `actorKind` was quietly answering all of them:
+ *
+ *   actorId / actorKind   who acted on the network. An Agent.
+ *   principalId           whose authority it acted under, when one is named.
+ *   contentOrigin         where the words came from, when the fact carries any.
+ *
+ * A person keeps their trace here — that is what renders as
+ * `👤 You · via GenOnA` — they simply do not occupy the actor field. Dropping
+ * the person from the view entirely would be the opposite error from the one
+ * principle 0 fixes.
+ */
 export interface ActivityEntry {
   eventId: string
   type: string
   occurredAt: string
   correlationId: string
   actorId: string
-  actorKind: 'agent' | 'human' | 'system'
+  /**
+   * `legacy` marks a fact written before the Agent-only issuer invariant,
+   * whose recorded kind is in `legacyActorKind`. It is not a claim that some
+   * other kind of actor is allowed today; it is a refusal to relabel history
+   * as having complied.
+   */
+  actorKind: 'agent' | 'legacy'
+  /** Set only on legacy facts: the issuer kind exactly as it was written. */
+  legacyActorKind?: 'human' | 'system'
+  /** The Principal the actor named as its authority, when the fact names one. */
+  principalId?: string
+  /** Who produced the content, for facts that carry any. Never the actor. */
+  contentOrigin?: 'human' | 'agent'
   subjectKind: 'agent' | 'goal' | 'task' | 'room' | 'artifact' | 'conversation' | 'principal' | 'publication'
   subjectId: string
   taskId?: string

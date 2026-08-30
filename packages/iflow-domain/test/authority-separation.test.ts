@@ -13,10 +13,12 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { validateEvent } from 'iflow-protocol'
+
 import type { AnyIFlowEvent } from '../src/event-types.js'
 import { reduceEvents } from '../src/reducers/network-state.js'
-import { projectDiscoveryFeed } from '../src/projectors/index.js'
-import { AUTHORITY_SHAPED, fieldsOf, keysDeep, prose, src } from './source.js'
+import { projectActivityFeed, projectDiscoveryFeed } from '../src/projectors/index.js'
+import { AUTHORITY_SHAPED, fieldsOf, keysDeep, prose, repoDoc, src } from './source.js'
 
 function publication(id: string, overrides: Record<string, unknown> = {}): AnyIFlowEvent {
   return {
@@ -74,6 +76,141 @@ function keysDeep(value: unknown, found = new Set<string>()): Set<string> {
   }
   return found
 }
+
+/** A well-formed envelope, so a failure below is about the issuer and nothing else. */
+function envelope(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'evt-p0',
+    schemaVersion: 2,
+    origin: { nodeId: 'node-1', streamId: 'edge', seq: 1 },
+    occurredAt: '2026-01-01T00:00:00.000Z',
+    correlationId: 'corr-p0',
+    visibility: 'local',
+    type: 'task.created',
+    issuer: { id: 'agent-a', kind: 'agent' },
+    subject: { kind: 'task', id: 'task-1' },
+    payload: { title: 'One' },
+    ...overrides,
+  }
+}
+
+function fact(
+  type: string,
+  subject: AnyIFlowEvent['subject'],
+  payload: unknown,
+  extra: Record<string, unknown> = {},
+): AnyIFlowEvent {
+  return { ...envelope({ type, subject, payload, ...extra }), id: `evt-${type}` } as AnyIFlowEvent
+}
+
+describe('principle 0 — the Human is a Principal, not a network Actor', () => {
+  it('refuses a new fact issued by a person', () => {
+    const result = validateEvent(envelope({ issuer: { id: 'user-1', kind: 'human' } }), { emitting: true })
+    expect(result.valid).toBe(false)
+    expect(result.issues.map((issue) => issue.path)).toContain('issuer.kind')
+  })
+
+  it('refuses a new fact issued by the runtime or the Community', () => {
+    // The regression this exists to stop is not a return of `human`. It is
+    // `human` coming back as `system`: a Community or a runtime signing a
+    // social action with no accountable Agent behind it, which is principle 6
+    // approached from the other side. Infrastructure that wants to attest
+    // something says so in a fact of its own, under its own type.
+    const result = validateEvent(envelope({ issuer: { id: 'hub-1', kind: 'system' } }), { emitting: true })
+    expect(result.valid).toBe(false)
+  })
+
+  it('leaves exactly one kind of thing able to issue a fact', () => {
+    // The behavioural tests above pass just as well against a set of two.
+    // This is the one that notices a third value being added to it.
+    expect(repoDoc('packages/iflow-protocol/src/validate.ts')).toContain(
+      "const EMITTABLE_ISSUER_KINDS = new Set(['agent'])",
+    )
+  })
+
+  it('reads a fact written before the invariant and refuses to re-emit it', () => {
+    const legacy = envelope({ issuer: { id: 'user-1', kind: 'human' } })
+    expect(validateEvent(legacy).valid, 'history became unreadable').toBe(true)
+    expect(validateEvent(legacy, { emitting: true }).valid, 'history became re-emittable').toBe(false)
+  })
+
+  it('keeps human-typed words under an Agent network actor', () => {
+    const state = reduceEvents([
+      fact('conversation.opened', { kind: 'conversation', id: 'conv-1' }, {
+        participants: [
+          { agentId: 'agent-a', principalId: 'principal-1' },
+          { agentId: 'agent-b', principalId: 'principal-2' },
+        ],
+        initiatedBy: 'agent-a',
+        crossesOwnershipBoundary: true,
+      }, { conversationId: 'conv-1' }),
+      fact('conversation.message_sent', { kind: 'conversation', id: 'conv-1' }, {
+        messageId: 'msg-1',
+        toAgentId: 'agent-b',
+        actorType: 'human',
+        origin: 'keyboard',
+        contentDigest: 'sha256:hello',
+      }, { conversationId: 'conv-1', principalId: 'principal-1' }),
+    ])
+
+    const entry = projectActivityFeed(state, { builtAt: '2026-01-01T00:00:00.000Z' }).data.entries.find(
+      (candidate) => candidate.type === 'conversation.message_sent',
+    )
+
+    // A person typed it; their Agent said it. Both facts survive the
+    // projection, in different fields — that pair is what a UI renders as
+    // `👤 You · via GenOnA`.
+    expect(entry?.actorId).toBe('agent-a')
+    expect(entry?.actorKind).toBe('agent')
+    expect(entry?.contentOrigin).toBe('human')
+    expect(entry?.principalId).toBe('principal-1')
+  })
+
+  it('records an Agent as the actor when a person clicks Accept', () => {
+    const state = reduceEvents([
+      fact('delivery.submitted', { kind: 'task', id: 'task-1' }, {
+        deliveryId: 'del-1',
+        byAgentId: 'agent-b',
+        outputs: [],
+        evidence: [],
+      }, { taskId: 'task-1' }),
+      fact('delivery.accepted', { kind: 'task', id: 'task-1' }, {
+        deliveryId: 'del-1',
+        acceptedByAgentId: 'agent-a',
+        decidedBy: 'human',
+      }, { taskId: 'task-1' }),
+    ])
+
+    const acceptance = state.tasks['task-1']?.deliveries[0]?.acceptance
+    expect(state.tasks['task-1']?.state).toBe('completed')
+    expect(acceptance?.ruledByAgentId, 'a person ended up in the actor field').toBe('agent-a')
+    expect(acceptance?.decidedBy).toBe('human')
+  })
+
+  it('does not let a decision origin type itself as an identifier', () => {
+    // The shape that produced the bug: one field holding either a person or
+    // an Agent, with a `kind` beside it to say which. The self-acceptance
+    // check compares that field against an Agent id, so a person in it made
+    // the check compare two things that could never be equal, and it never
+    // fired on exactly the path a person took.
+    expect(src('event-types.ts')).not.toMatch(/decidedBy: string/)
+    expect(src('objects.ts')).not.toMatch(/decidedBy: string/)
+    // The declaration, not the prose: the comment above the payload explains
+    // what the old pair got wrong, and is allowed to name it.
+    expect(src('event-types.ts')).not.toMatch(/decidedByKind??:/)
+    expect(src('objects.ts')).not.toMatch(/decidedByKind??:/)
+    expect(src('objects.ts')).toContain("export type AcceptanceDecider = 'human' | 'policy'")
+  })
+
+  it('gives the activity view no way to name a person as the actor', () => {
+    const declared = fieldsOf('views.ts', 'ActivityEntry')
+    expect(declared).toContain('contentOrigin')
+    expect(declared).toContain('principalId')
+    // `legacy` is allowed and `human` is not: a pre-invariant fact is shown
+    // as what it was, never relabelled, and never as a live actor kind.
+    expect(src('views.ts')).toContain("actorKind: 'agent' | 'legacy'")
+  })
+})
 
 describe('principle 1 — discovery evidence is not authority', () => {
   it('declares no field on a Publication that could be read as a permission', () => {

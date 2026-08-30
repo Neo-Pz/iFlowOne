@@ -16,6 +16,9 @@ Runtime -> Adapter -> iFlow Domain Core -> Origin Journal -> Local Projection ->
 > Event types, payload shapes and view contracts will change without notice
 > until 1.0, and changes may be breaking. Licensed under Apache-2.0 so you can
 > build against it today — pin an exact version if you do.
+>
+> **0.7.0 is a breaking release** and one of its breaks is silent. See
+> [`CHANGELOG.md`](CHANGELOG.md) before upgrading.
 
 The full design baseline is
 [`IFLOWONE-ARCHITECTURE.md`](https://github.com/Neo-Pz/dsh/blob/main/IFLOWONE-ARCHITECTURE.md)
@@ -38,11 +41,16 @@ authority, relationship and trust and grant stay three separate things, a feed
 is a projection and never a domain object, and the Community may relay
 authority but may never originate it.
 
-**→ [Architecture principles](docs/principles.md)** — eight of them, each with
-the failure it prevents, and the test that enforces it where one can.
+**→ [Architecture principles](docs/principles.md)** — nine of them, numbered
+from zero, each with the failure it prevents, and the test that enforces it
+where one can.
 
 Read this before adding a field to a public object. Most of the mistakes it
 describes compile, pass their feature tests, and are expensive to reverse.
+
+**→ [The Discovery Plane](docs/discovery-plane.md)** — how an Agent finds one
+it does not already know, what may be borrowed from networks that solved that
+before us, and the four boundaries fixed before any of it is built.
 
 ## What is deliberately not here
 

@@ -5,6 +5,13 @@
  * validate against one artifact instead of three hand-written copies. The
  * runtime validator in `validate.ts` is the fast path; these documents are the
  * interoperable statement of the same contract.
+ *
+ * Events come in two documents, not one, matching the writer/reader asymmetry
+ * that principle 0 needs: `IFLOW_EVENT_SCHEMA` says what may be read,
+ * `IFLOW_EMITTED_EVENT_SCHEMA` says what may be written. A service that
+ * validates inbound history with the emit schema will reject facts it is
+ * supposed to keep; one that validates its own output with the read schema
+ * will publish the thing the invariant exists to stop.
  */
 
 export const IFLOW_EVENT_SCHEMA = {
@@ -61,6 +68,8 @@ export const IFLOW_EVENT_SCHEMA = {
       properties: {
         id: { type: 'string', minLength: 1 },
         did: { type: 'string', minLength: 1 },
+        // Read-side. `human` and `system` are pre-principle-0 facts, kept
+        // legible; `IFLOW_EMITTED_EVENT_SCHEMA` is what new events must pass.
         kind: { enum: ['agent', 'human', 'system'] },
       },
     },
@@ -94,6 +103,27 @@ export const IFLOW_EVENT_SCHEMA = {
       properties: {
         source: { enum: ['dsh', 'a2a', 'user', 'projection'] },
         signature: { type: 'string' },
+      },
+    },
+  },
+} as const
+
+/**
+ * What a node may newly emit: principle 0's Agent-only issuer, and nothing
+ * else. Derived from the read schema so the two can never drift apart in any
+ * respect other than the one they are meant to differ in.
+ */
+export const IFLOW_EMITTED_EVENT_SCHEMA = {
+  ...IFLOW_EVENT_SCHEMA,
+  $id: 'https://iflowone.cn/schema/iflow-event-emitted.json',
+  title: 'IFlowEvent (emitted)',
+  properties: {
+    ...IFLOW_EVENT_SCHEMA.properties,
+    issuer: {
+      ...IFLOW_EVENT_SCHEMA.properties.issuer,
+      properties: {
+        ...IFLOW_EVENT_SCHEMA.properties.issuer.properties,
+        kind: { enum: ['agent'] },
       },
     },
   },
