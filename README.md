@@ -16,6 +16,9 @@ Runtime -> Adapter -> iFlow Domain Core -> Origin Journal -> Local Projection ->
 > Event types, payload shapes and view contracts will change without notice
 > until 1.0, and changes may be breaking. Licensed under Apache-2.0 so you can
 > build against it today — pin an exact version if you do.
+>
+> **0.7.0 is a breaking release** and one of its breaks is silent. See
+> [`CHANGELOG.md`](CHANGELOG.md) before upgrading.
 
 The full design baseline is
 [`IFLOWONE-ARCHITECTURE.md`](https://github.com/Neo-Pz/dsh/blob/main/IFLOWONE-ARCHITECTURE.md)

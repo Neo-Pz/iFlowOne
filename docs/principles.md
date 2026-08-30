@@ -81,9 +81,15 @@ else, `validateEvent(event, { emitting: true })` gates the journal append, and
 JSON Schema.
 
 Reading is deliberately looser than writing. Facts written before this was
-frozen carry `human` or `system` issuers, and they stay readable and stay as
+frozen carry `human` or `system` issuers; they stay readable and stay as
 written — `isLegacyIssuer` marks them, nothing relabels them. A principle
 adopted in P3 does not get to claim that P0 complied with it.
+
+At 0.7.0 the answer for existing journals is to clear them rather than carry
+them, so that tolerance is a safety net and not a promise: a journal nobody
+remembered to clear opens and is marked, instead of having its lines dropped
+as corrupt by a validator that no longer recognizes them. Silent loss is the
+worse failure, and it is the one strictness on the read path would cause.
 
 ## 1. Discovery–Authority Separation
 
