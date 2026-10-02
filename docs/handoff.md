@@ -6,9 +6,192 @@ what is still owed, and which mistakes have already been paid for once.
 
 Written 2026-09-05, against `iflow-domain@0.7.0`.
 
+## 0. Naming and component boundaries — fixed 2026-10-02
+
+### Review follow-up — 2026-10-02
+
+The subsequent release review fixed the DSH terminal-result contract (including
+rejected/failed/canceled reasons and submitted rendering), corrected the Web
+discovery reference to use the node-scoped `agentRef`, and added Community
+release checks before Worker/Web deployment. Connect has 194 passing tests,
+DSH has 430, and Web has 34; production migration 0007 remains a separately
+authorized step. The local-refactor evidence below describes the earlier
+snapshot, not the current release state. A successful source push does not
+update the installed DSH plugin or publish the Connect npm packages.
+
+The product is an Agent and Human community: Agents discover one another,
+communicate and cooperate across platforms; people authorize, supervise and
+participate through their own Agents. The following names are canonical for
+new design work and documentation.
+
+| Component | Display name | Code/repository identifier | Responsibility |
+|---|---|---|---|
+| Community platform | **iFlowOne**, short **iFO** | `iflowone-community` | Community service, discovery directory, routing, ciphertext relay and Web; people retain authority, Agents perform network actions |
+| General Agent connection layer | **iFlow Connect** | `iflow-connect` | Shared domain/protocol contracts, adapter SDK and reusable Agent-side networking services; independent of any host platform |
+| DeepSeek Harness connector | **iFlow DSH Plugin** | `iflow-dsh-plugin` | Discover declared DSH Agents, translate DSH execution/events, enforce host permissions and integrate the DSH panel |
+
+`iFlow` is the family prefix. `iFO` refers to the community product, never the
+SDK or a particular plugin. `Core` means Connect's shared domain and protocol
+contracts. `Edge` means a running Agent-side network component, not a fourth
+product. Other platforms use the same Connect layer and their own connector;
+platforms with suitable APIs can use a sidecar or A2A bridge instead of an
+in-process plugin.
+
+### Naming convention and verified code mapping
+
+The three display names above are retained. The community's target repository
+name is refined to `iflowone-community`, rather than the previously proposed
+generic `iflowone`, so no component inherits another component's legacy name.
+Display names describe products; repository names describe components; npm
+package names identify published APIs. These are separate naming surfaces.
+
+This follows role-based naming seen in mature projects, rather than a universal
+industry rule:
+
+- [Apache Kafka Connect](https://kafka.apache.org/41/kafka-connect/overview/)
+  distinguishes its common integration framework from individual connectors.
+  `Connect` names our reusable connection framework; it includes an SDK and
+  reusable runtime services, rather than naming one platform adapter.
+- [Microsoft Semantic Kernel](https://learn.microsoft.com/en-us/semantic-kernel/overview/)
+  distinguishes its development kit, connectors and plugins. A platform
+  adapter implements host integration; a plugin is its host-installed form.
+  `DSH Plugin` therefore explicitly names the host and packaging form.
+- [AWS SDK for JavaScript](https://github.com/aws/aws-sdk-js-v3#generated-code)
+  uses separate names for client, utility and higher-level packages. Keep
+  existing `iflow-domain`, `iflow-protocol` and `iflow-adapter-sdk` names accurate
+  to their responsibilities; a repository rename does not require renaming
+  those published APIs.
+
+The current mapping was verified against source entry points, package manifests
+and the committed READMEs predating this naming change:
+
+| Stable component ID | Current directory | Configured GitHub repository | Target repository/directory | Code identifying the component |
+|---|---|---|---|---|
+| `community` | `iflowone-community` | `Neo-Pz/iFlowOne-iFO` | `iflowone-community` | Community Worker, Web and Hub UI |
+| `connect` | `iflow-connect` | `Neo-Pz/iFlowOne` | `iflow-connect` | `iflow-domain`, `iflow-protocol`, `iflow-adapter-sdk` |
+| `dsh-plugin` | `iflow-dsh-plugin` | `Neo-Pz/dsh` | `iflow-dsh-plugin` | DSH bundle, host ports, Sessions and panel |
+
+Each repository now carries `iflow.component.json` with its stable ID, role,
+current directory and remote, target repository name, dependencies and source
+roots. This file is architecture metadata, not a runtime protocol or an Agent
+identity. Identify the component by this metadata when refactoring or migrating;
+do not infer responsibility from a legacy folder suffix. Its stable ID remains
+the same after a directory or GitHub rename. Source roots and current locations
+must be updated when those actually move. These declarations do not imply that
+CI enforces the boundaries yet.
+
+The package and API vocabulary is fixed as follows:
+
+| Term | Meaning and owner |
+|---|---|
+| `Community` / `Web` | Community network services and Human-facing product UI; community repository |
+| `Domain` / `Protocol` | Shared semantics and wire contracts; Connect packages |
+| `SDK` | Developer-facing host ports and reusable libraries; Connect SDK |
+| `Edge` | Agent-side network runtime built from Connect, bound to host ports |
+| `Adapter` | Translation between a specific host and Connect's ports |
+| `Plugin` | Adapter installed inside a host such as DSH; DSH repository |
+
+**The three components are distinct; a directory or repository is a packaging
+boundary, not a different product concept.** Keep three product repositories.
+The local directory layout after the 2026-10-02 refactor is:
+
+```text
+F:\i_Flow_One\iFO\
+  iflowone-community\          iFlowOne community
+    apps\iflowone-community\  Community backend
+    apps\iflowone-web\        Web client
+    packages\iflow-hub-ui\    Shared product UI
+  iflow-connect\              iFlow Connect
+    packages\iflow-domain\    Agent/task/relationship/delivery semantics
+    packages\iflow-protocol\  Wire contracts and ARD/A2A integration contracts
+    packages\iflow-adapter-sdk\ Host ports and reusable Edge services
+  iflow-dsh-plugin\            Concrete DSH connector
+  A2A\                        Protocol reference, read-only
+  ard-spec\                   Protocol reference, read-only
+```
+
+Connect owns reusable Agent declaration, identity selection, discovery,
+conversation policy, routing, retry and collaboration orchestration. Platform
+connectors implement storage, cryptography, network I/O, Agent enumeration,
+execution, cancellation and output observation through host ports. DSH Sessions,
+presets and model APIs remain in the DSH connector. Community owns accepted
+public facts, indexes, routing and opaque queues; it never owns Agent private
+keys or executes work on an offline Agent's behalf. Web sends authorized sealed
+Intent through the selected own Agent. Discovery never grants execution rights.
+
+Connect now owns shared A2A text/RPC projections, conversation policy,
+ARD publication/search services and `AgentRuntimePort` orchestration. DSH
+event blocks, presets, Sessions, signing key homes and subprocess I/O remain
+in the connector's `src/runtime/dsh-agent-runtime.ts` and `dsh-connect.ts`.
+The new execution port is exercised by two differently shaped memory hosts;
+DSH's existing complete execution flow remains in its adapter and is not yet
+fully expressed through that port. A real second platform must implement
+and verify its own adapter; tests do not imply universal runtime support.
+
+Community's public fold and ARD catalog use bounded accepted-cursor pages and
+per-database incremental caches. Public indexes derive node-scoped Agent
+references without rewriting signed Journal facts. Explicit cross-node self
+references, private ownership fields and contradictory declared DIDs are
+refused on public ingestion. Historical unsafe rows are excluded from public
+read models and replay while raw accepted cursor progress is preserved.
+Web uses global references for navigation and local IDs plus exact DIDs for
+conversation transport. New sends, syncs and draft decisions bind to the
+selected own authority. Local threads distinguish both Agent authorities,
+including peers with the same local name.
+
+ARD follows the local v0.91 reference: manifest and keyword search, bounded
+filters/contexts and explicit signed public Agent cards. Federation, arbitrary
+remote JSON-LD resolution and semantic ranking remain unimplemented. Current
+DSH publication requires a public HTTPS Agent interface; the encrypted relay
+URL is not a standard A2A JSON-RPC endpoint. NAT-only publishing needs a
+separately specified interoperable route. Discovery grants no execution rights.
+
+The two local directories are now `iflow-connect` and `iflowone-community`.
+They remain three separate Git repositories. The community root's private
+workspace package is `iflowone-community-workspace`, distinct from the Worker
+package `iflowone-community`. GitHub remotes, published npm names, deployment
+resource names and the installed DSH copy retain their existing identities.
+Private Agent grants now use Principal + Node + local Agent ID rather than a
+network-wide bare name. Community migration
+`0007_node_scoped_private_agent_grants.sql` preserves all existing grant fields
+and must be applied before the new Worker is deployed. It has only been run
+against isolated local SQLite fixtures; production remains unchanged. The
+existing Principal/DID uniqueness constraint still prevents an automatic
+cross-Node DID migration.
+Consumers still pin npm 0.7.0; generated portable Connect modules allow each
+to build independently before an authorized package release. Verify drift
+with `node scripts/sync-connect-snapshots.mjs --check` from Connect. Replace
+the snapshots with package imports and bump consumers at release time.
+The old `sync-ard-contract.mjs` command delegates to the same generator.
+
+Directory migration repairs existing Windows pnpm junctions and command
+shims in place, without reinstalling packages. Pre-directory-migration
+working files, Git patches and a link inventory are backed up outside these
+repositories under `F:\i_Flow_One\refactor-backups`. Plugin absolute dev patch
+URLs and linked-worktree pointers stay valid because its directory did not
+move. No commit, push, installation, restart or production deployment belongs
+to this local refactor. The sections below retain dated baseline results.
+
+### Local acceptance after the refactor
+
+The machine-readable evidence is in
+[`refactor-validation-20261002.json`](refactor-validation-20261002.json).
+Builds and typechecks passed. Core/Connect 194, Community 113, Web 32 and DSH
+Plugin 412 tests passed: **751 passed, zero failed**. Permanent isolated
+mutation checks caught **119 mutations**, including shared service, public and
+private identity isolation, send policy, replay progress and generated-source
+drift. The local ARD reference CLI reported PASS for the manifest and registry.
+
+Original branch names and HEADs are preserved. The installed DSH `index.js`
+still has the earlier hash `58048E8C67620E73`; the local new bundle begins
+`59DA4D895C43A917`. Do not claim they match. The existing S01 rejected-terminal
+output issue was re-reproduced against the new bundle and remains outside this
+architecture refactor. Live second-platform and two-machine acceptance remain
+pending.
+
 ---
 
-## 1. The three repositories
+## 1. The existing repositories (historical names)
 
 ```
 iFlowOne            (this repo)  the contracts        published to npm

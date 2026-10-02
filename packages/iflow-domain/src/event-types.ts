@@ -121,6 +121,7 @@ export interface EventPayloadMap {
     nodeId: string
     runtimeKind: string
     capabilities: string[]
+    discovery?: import('iflow-protocol').AgentDiscoveryProfile | null
     /** The Principal this Agent acts for, when one has claimed it. */
     principal?: PrincipalRef
     trustEvidence?: TrustEvidence[]

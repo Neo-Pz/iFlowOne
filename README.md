@@ -1,10 +1,22 @@
-# iFlowOne
+# iFlow Connect
 
-The iFlow core: **Agent Network Ontology + Event Semantics + Event Journal + Projection Model.**
+The general Agent connection layer for **iFlowOne (iFO)**, the Agent and Human
+community platform. This repository contains the shared Core contracts and
+runtime-independent adapter SDK. Reusable Agent-side conversation and discovery services are maintained here;
+platform execution is described by explicit host ports.
 
-iFlow is not a deployment, a plugin, or a transport. It is a domain and event
+The shared Core is **Agent Network Ontology + Event Semantics + Event Journal + Projection Model**: a domain and event
 system whose facts can be produced on any runtime, kept locally, synchronized
 between nodes, and read through the same projections wherever they are hosted.
+
+Canonical names: **iFlowOne / `iflowone-community`** (community), **iFlow Connect /
+`iflow-connect`** (general connection layer), and **iFlow DSH Plugin /
+`iflow-dsh-plugin`** (concrete connector). See
+[the naming and boundary decision](docs/handoff.md#0-naming-and-component-boundaries--fixed-2026-10-02).
+The local directory is `iflow-connect`. GitHub remotes and published
+`iflow-*` package names retain their existing identities until an authorized release.
+`iflow.component.json` identifies this repository as `connect`; its component
+identity remains stable through that migration.
 
 ```
 Runtime -> Adapter -> iFlow Domain Core -> Origin Journal -> Local Projection -> Embedded Hub
@@ -25,6 +37,31 @@ The full design baseline is
 in the reference adapter's repository.
 
 ## Packages
+
+### ARD interoperability (unreleased)
+
+`iflow-protocol/src/ard.ts` defines the ARD v0.91 entry, search, private search
+Intent/View and explicitly public Agent profile contracts. The implementation
+targets the local `ard-spec` reference at `b76f235`; it is a bounded profile,
+not a claim to implement arbitrary remote JSON-LD contexts or federation.
+`agent.registered.payload.discovery` carries an approved profile, or `null`
+to withdraw it. Omitting the field preserves the prior profile; a changed DID
+does not authorize reuse of the old card. Query relevance is never authority.
+
+The consumers still pin published Core 0.7.0. Until the next authorized npm
+release, `node scripts/sync-connect-snapshots.mjs` generates portable, hash-labelled
+contract snapshots in their own source trees. `--check` detects drift; consumer
+builds require neither a sibling checkout nor changes to the installed packages.
+After publishing the new contract, replace these snapshots with package imports
+and bump consumer dependencies and lockfiles together.
+
+Verification: `pnpm test`, `pnpm typecheck`, `pnpm build`,
+`node scripts/sync-connect-snapshots.mjs --check`, and
+`node scripts/check-ard-guards.mjs`. The last two are cross-repository checks
+for this development workspace and require the three repositories as siblings.
+Local acceptance on 2026-10-02: 194 Core tests passed, package builds and
+typechecks passed, and shared service, ARD and generated-source drift mutations were caught in disposable
+copies. This is source verification, not a package publication.
 
 | Package | Owns | Never owns |
 | --- | --- | --- |
@@ -54,7 +91,7 @@ before us, and the four boundaries fixed before any of it is built.
 
 ## What is deliberately not here
 
-The Hub UI, the Web app, and the future Community service — global journal,
+The Hub UI, the Web app, and the Community service — global journal,
 cross-node projections, reputation, market aggregation — are product surfaces
 and live in a separate, private repository.
 
@@ -75,7 +112,10 @@ versus what iFlowOne offers as a *service*:
 npm i iflow-adapter-sdk
 ```
 
-The whole contract is `iflow-adapter-sdk/src/ports.ts`. A host provides
+The Edge infrastructure ports are in `iflow-adapter-sdk/src/ports.ts`.
+`agent-runtime.ts` defines enumerate/describe/execute/status/cancel capabilities
+with explicit local policy checks. Conversation and discovery use separate
+current-state, signing/journal and network ports. A host provides
 storage, subprocess, HTTP, clock, logger and id ports; iFlow provides
 everything above them.
 

@@ -1,5 +1,5 @@
 {
-  "name": "iflowone",
+  "name": "iflow-connect",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,12 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fixtures": "tsx scripts/generate-fixtures.ts"
+    "fixtures": "tsx scripts/generate-fixtures.ts",
+    "snapshots:sync": "node scripts/sync-connect-snapshots.mjs",
+    "snapshots:check": "node scripts/sync-connect-snapshots.mjs --check",
+    "test:guards:connect": "node scripts/check-connect-guards.mjs",
+    "test:guards:ard": "node scripts/check-ard-guards.mjs",
+    "test:guards:snapshots": "node scripts/check-snapshot-guards.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

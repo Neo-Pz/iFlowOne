@@ -19,6 +19,9 @@ export type {
   StreamRouteSpec,
 } from './ports.js'
 export { createIdPort, createSystemClock, silentLogger } from './ports.js'
+export * from './conversation-service.js'
+export * from './discovery-runtime.js'
+export * from './agent-runtime.js'
 
 export type { EdgePaths } from './paths.js'
 export { EDGE_DIR, edgePaths } from './paths.js'

@@ -2,6 +2,23 @@
 
 Pre-1.0. Breaking changes ship in minor versions and are listed here.
 
+## Unreleased — Connect boundaries and ARD discovery
+
+- Shared conversation policy, explicit-host discovery services, A2A RPC/text
+  helpers and node-scoped Agent address helpers now live in Connect.
+- `AgentRuntimePort` exposes enumerate/describe/execute/status/cancel with
+  explicit local authorization and identity rechecks; host-specific execution
+  remains in each connector.
+- ARD v0.91 profiles and private search Intent/View contracts are additive.
+  Public profiles require explicit consent and the selected Agent's signature.
+- Private conversation sync and list metadata may carry an exact peer DID.
+  Community public indexes use node-scoped references; consumers must retain
+  local IDs and DIDs for transport rather than send a public reference as a
+  host-local ID.
+- Local repository directories are `iflow-connect`, `iflowone-community` and
+  `iflow-dsh-plugin`. Published packages, GitHub remotes and production
+  deployments have not been renamed or released.
+
 ## 0.7.0 — principle 0: only an Agent acts on the network
 
 **Every network action is performed by an Agent.** A person originates intent

@@ -1,3 +1,7 @@
+export * from './ard.js'
+export * from './a2a.js'
+export * from './agent-ref.js'
+
 export type {
   IFlowEvent,
   IFlowCommand,
@@ -18,6 +22,8 @@ export { isLegacyIssuer } from './envelope.js'
 
 export type {
   ConversationContentOrigin,
+  AgentIntent,
+  AgentPrivateView,
   ConversationDeliveryState,
   ConversationIntent,
   ConversationListItem,

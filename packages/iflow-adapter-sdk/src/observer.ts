@@ -103,6 +103,7 @@ export class RuntimeObserver {
     capabilities?: string[]
     did?: string
     trustEvidence?: TrustEvidence[]
+    discovery?: import('iflow-protocol').AgentDiscoveryProfile | null
     context?: ObserverContext
   }): Promise<AnyIFlowEvent | undefined> {
     return this.safely('agent.registered', () =>
@@ -117,6 +118,7 @@ export class RuntimeObserver {
           runtimeKind: this.descriptor.runtimeKind,
           capabilities: input.capabilities ?? [],
           trustEvidence: input.trustEvidence,
+          ...(input.discovery !== undefined ? { discovery: input.discovery } : {}),
         },
         ...spread(input.context),
       }),

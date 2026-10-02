@@ -224,6 +224,10 @@ function reduceKnown(state: NetworkState, event: DomainEvent): void {
     agent.nodeId = event.payload.nodeId
     agent.runtimeKind = event.payload.runtimeKind
     agent.capabilities = [...event.payload.capabilities]
+    // A restarted Agent may retain its profile; a replacement identity must
+    // explicitly publish its own card instead of inheriting the old DID's.
+    if (event.payload.did !== undefined && event.payload.did !== agent.did) agent.discovery = null
+    if (event.payload.discovery !== undefined) agent.discovery = event.payload.discovery === null ? null : JSON.parse(JSON.stringify(event.payload.discovery))
     if (event.payload.did !== undefined) agent.did = event.payload.did
     // A claim is only ever added, never cleared by a later registration: an
     // Agent that re-registers without naming its Principal has not been
@@ -844,6 +848,7 @@ function cloneState(state: NetworkState): NetworkState {
       ...a,
       state: { ...a.state },
       capabilities: [...a.capabilities],
+      ...(a.discovery !== undefined ? { discovery: a.discovery === null ? null : JSON.parse(JSON.stringify(a.discovery)) } : {}),
       trustEvidence: [...a.trustEvidence],
     })),
     goals: mapValues(state.goals, (g) => ({ ...g, constraints: g.constraints ? [...g.constraints] : undefined })),

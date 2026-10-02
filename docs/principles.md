@@ -188,7 +188,7 @@ grant, run an Agent's policy while that Agent is offline, or treat a transcript
 as a cloud-side source of truth.
 
 An offline Agent is unavailable, not delegated. Enforced on the service side by
-`apps/iflowone-community/test/opacity.test.mjs` in the iflowone-ifo repository.
+`apps/iflowone-community/test/opacity.test.mjs` in the iflowone-community repository.
 
 ## 7. Borrow mechanisms, never identity or truth
 

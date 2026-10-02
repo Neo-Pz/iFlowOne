@@ -90,6 +90,8 @@ export interface Agent {
   nodeId: string
   runtimeKind: string
   capabilities: string[]
+  /** Explicit public discovery profile; null withdraws it. Never a grant. */
+  discovery?: import('iflow-protocol').AgentDiscoveryProfile | null
   state: AgentState
   /**
    * The Principal this Agent acts for.

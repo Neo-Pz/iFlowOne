@@ -1,6 +1,8 @@
 # Working in this repository
 
-This is **iFlowOne Core** — the contracts. Three packages, published to npm,
+This is **iFlow Connect** — the general Agent connection layer for the
+**iFlowOne (iFO)** community. Its current implementation is the shared Core
+contracts and adapter SDK. Three packages, published to npm,
 consumed by every adapter and by the public Worker:
 
 | package | what it is |
@@ -8,6 +10,15 @@ consumed by every adapter and by the public Worker:
 | `iflow-domain` | facts, reducers, projectors — the model |
 | `iflow-protocol` | wire schemas, read *and* emit |
 | `iflow-adapter-sdk` | what an adapter has to implement |
+
+Canonical repository and local directory identifier: `iflow-connect`.
+The configured GitHub remote retains the historical `Neo-Pz/iFlowOne` name. The naming decision
+is in `docs/handoff.md`, section 0. Do not mistake this layer for the community
+Web product or for the concrete DSH plugin.
+`iflow.component.json` fixes the stable component ID `connect` and the actual
+source roots. Consult it before restructuring. The community's target
+repository name is `iflowone-community`; no component inherits this repo's
+historical `iflowone` name.
 
 Currently `0.7.0`. Nothing here may know about DSH, about Cloudflare, or about
 any particular runtime. If a change needs to, it belongs in an adapter.
@@ -20,7 +31,7 @@ someone a day.
 
 ```bash
 pnpm install       # do this first; a missing dep surfaces as a bogus TS error
-pnpm test          # 173 tests
+pnpm test          # 194 tests
 pnpm typecheck
 pnpm build
 ```

@@ -1,0 +1,110 @@
+{
+  "formatVersion": 1,
+  "verifiedAt": "2026-10-02T14:47:49.512Z",
+  "scope": "Local refactor and verification; no release or production operation",
+  "components": [
+    {
+      "id": "connect",
+      "directory": "F:/i_Flow_One/iFO/iflow-connect",
+      "branch": "docs/maintainer-handoff",
+      "head": "3cab927507a9745ae623b3e532ebef2fc8f20e80",
+      "remote": "https://github.com/Neo-Pz/iFlowOne.git",
+      "workingTreePreserved": true
+    },
+    {
+      "id": "community",
+      "directory": "F:/i_Flow_One/iFO/iflowone-community",
+      "branch": "docs/maintainer-handoff",
+      "head": "fdee67fc828e3a1dd631a68cd592dbe681973647",
+      "remote": "https://github.com/Neo-Pz/iFlowOne-iFO.git",
+      "workingTreePreserved": true
+    },
+    {
+      "id": "dsh-plugin",
+      "directory": "F:/i_Flow_One/iFO/iflow-dsh-plugin",
+      "branch": "fix/conversation-tool-output-contract",
+      "head": "77d396afec488a06813968fb275d6034a46f3bdb",
+      "remote": "https://github.com/Neo-Pz/dsh.git",
+      "workingTreePreserved": true
+    }
+  ],
+  "tests": {
+    "connect": 194,
+    "community": 113,
+    "web": 32,
+    "dshPlugin": 412,
+    "total": 751,
+    "failed": 0
+  },
+  "checks": {
+    "connectBuild": "passed",
+    "connectTypecheck": "passed",
+    "communityWorkspaceTypecheck": "passed",
+    "webProductionBuild": "passed",
+    "pluginBuildBeforeTests": "passed",
+    "ardReferenceCli": {
+      "revision": "b76f235",
+      "manifest": "PASS",
+      "registry": "PASS",
+      "scope": "v0.91 local manifest/registry profile"
+    },
+    "generatedSnapshots": "six sources match canonical Connect hashes",
+    "independentPluginBuild": "actual esbuild inputs use generated Connect modules and DSH adapter modules, with no sibling product source imports"
+  },
+  "isolatedMutations": {
+    "connect": 27,
+    "privateConversationStore": 8,
+    "ardAndPrivateWebReplay": 18,
+    "publicProjection": 19,
+    "privateAgentScope": 11,
+    "send": 20,
+    "conversationService": 10,
+    "generatedSnapshotDrift": 6,
+    "total": 119
+  },
+  "directoryMigration": {
+    "connect": "iflowone -> iflow-connect",
+    "community": "iflowone-ifo -> iflowone-community",
+    "gitRepositoriesRemainSeparate": true,
+    "junctionsRepaired": 747,
+    "shimsAndMetadataRepaired": 337,
+    "backup": "F:/i_Flow_One/refactor-backups/pre-directory-migration-20261002-223129"
+  },
+  "databaseMigration": {
+    "source": "../iflowone-community/apps/iflowone-community/migrations/0007_node_scoped_private_agent_grants.sql",
+    "purpose": "Principal + Node + local Agent ID private grant scope; preserve all existing fields",
+    "execution": "only isolated SQLite fixtures",
+    "productionApplied": false,
+    "releaseOrder": "Apply authorized production migration before deploying the new Worker"
+  },
+  "pluginArtifacts": {
+    "index": {
+      "source": "59da4d895c43a917e5f468b172f7752238d43d0d9df4d0c592648ca5d9c0f13a",
+      "installed": "58048e8c67620e7382cbace6c55551d08e2cb48809ac696c44120f6f78369fa9"
+    },
+    "client": {
+      "source": "508ee3f99261d5f15faca22ffefdaa15e6c32978f5d174c2d12f0094a9eb6a86",
+      "installed": "508ee3f99261d5f15faca22ffefdaa15e6c32978f5d174c2d12f0094a9eb6a86"
+    },
+    "installedCopyUpdated": false
+  },
+  "knownLimits": [
+    "ARD searches this registry using keywords; no federation or remote JSON-LD resolution",
+    "Other real platforms need a concrete host adapter; AgentRuntimePort conformance uses two memory hosts",
+    "DSH complete execution remains in its host adapter, not fully migrated onto the new AgentRuntimePort",
+    "Current DSH discovery publication requires a real public HTTPS A2A interface; opaque Worker relay is not a standard A2A HTTP gateway",
+    "DID migration between Nodes remains outside this change; private Principal/DID uniqueness is retained",
+    "Live authenticated Node round trip and dual-machine acceptance were not performed",
+    "Existing S01 rejected-terminal output without error remains reproducible with iFlow call failed: undefined"
+  ],
+  "actions": {
+    "committed": false,
+    "pushed": false,
+    "publishedPackages": false,
+    "renamedGitHubRepositories": false,
+    "installedDshPlugin": false,
+    "restartedDsh": false,
+    "deployed": false,
+    "productionDatabaseChanged": false
+  }
+}

@@ -38,7 +38,7 @@ function scenario(id: string, name: string, fn: () => void) {
 /** Enforced, but not from this file — duplicating it here would let the two drift. */
 const ENFORCED_ELSEWHERE: Record<string, string> = {
   'P3-10':
-    'iflowone-ifo · apps/iflowone-community/test/opacity.test.mjs — the Community cannot read, sign for, or act as an offline Agent',
+    'iflowone-community · apps/iflowone-community/test/opacity.test.mjs — the Community cannot read, sign for, or act as an offline Agent',
   'P3-11':
     'authority-separation.test.ts — a discovery result carries nothing readable as a right to make contact',
 }

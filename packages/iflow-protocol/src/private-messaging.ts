@@ -7,6 +7,10 @@
  */
 
 import type { IFlowSignature } from './envelope.js'
+import type { DiscoverySearchIntent, DiscoverySearchView, DiscoveryErrorView } from './ard.js'
+
+export type AgentIntent = ConversationIntent | DiscoverySearchIntent
+export type AgentPrivateView = ConversationPrivateView | DiscoverySearchView | DiscoveryErrorView
 
 export const PRIVATE_MESSAGE_ENVELOPE_VERSION = 1 as const
 
@@ -29,6 +33,8 @@ export type ConversationIntent =
       kind: 'conversation.sync'
       ownAgentId: string
       peerAgentId?: string
+      /** Distinguishes peers using the same local name on different platforms. */
+      peerAgentAuthorityDid?: string
       conversationId?: string
       cursor?: string
       limit?: number
@@ -57,6 +63,7 @@ export interface ConversationViewMessage {
 export interface ConversationListItem {
   conversationId: string
   peerAgentId: string
+  peerAgentAuthorityDid?: string
   peerLabel: string
   mode: ConversationMode
   state: string

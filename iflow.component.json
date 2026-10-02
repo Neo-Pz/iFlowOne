@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "componentId": "connect",
+  "displayName": "iFlow Connect",
+  "role": "agent-connection-framework",
+  "currentDirectoryName": "iflow-connect",
+  "currentGitRemote": "https://github.com/Neo-Pz/iFlowOne.git",
+  "targetRepositoryName": "iflow-connect",
+  "dependsOnComponents": [],
+  "sourceRoots": [
+    "packages/iflow-domain",
+    "packages/iflow-protocol",
+    "packages/iflow-adapter-sdk"
+  ],
+  "publishedPackageNames": [
+    "iflow-domain",
+    "iflow-protocol",
+    "iflow-adapter-sdk"
+  ]
+}
